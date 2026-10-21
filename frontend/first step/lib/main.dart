@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:particles_fly/particles_fly.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/auth_service.dart';
-import 'home_screen.dart'; // <<< 1. ДОДАЛИ ІМПОРТ ГОЛОВНОГО ЕКРАНУ
+import 'home_screen.dart'; // Твой импорт главного экрана
 
 void main() {
   runApp(const MaterialApp(
@@ -115,7 +115,7 @@ class _EduWayState extends State<EduWay> {
                                       return 'Введіть пароль';
                                     }
                                     if (value.length < 6) {
-                                      return 'Пароль має містити від 6 символів';
+                                      return 'Пароль має містити від 6 symbols';
                                     }
                                     return null;
                                   },
@@ -134,7 +134,6 @@ class _EduWayState extends State<EduWay> {
                                 const SnackBar(content: Text('зареєстровано')),
                               );
 
-                              // <<< 2. ДОДАЛИ ПЕРЕХІД НА ГОЛОВНИЙ ЕКРАН
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -174,7 +173,6 @@ class _EduWayState extends State<EduWay> {
                                     const SnackBar(content: Text('Успішний вхід')),
                                   );
 
-                                  // <<< 3. ДОДАЛИ ПЕРЕХІД ПРИ УСПІШНОМУ ВХОДІ
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(builder: (context) => const HomeScreen()),
