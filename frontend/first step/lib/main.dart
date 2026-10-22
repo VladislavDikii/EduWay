@@ -128,18 +128,23 @@ class _EduWayState extends State<EduWay> {
                         const SizedBox(height: 24),
 
                         ElevatedButton(
-                          onPressed: () {
-                            if (_formKey.currentState!.validate()) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('зареєстровано')),
-                              );
+                        onPressed: () {
+                          if (_formKey.currentState!.validate()) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Зареєстровано')),
+                            );
 
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(builder: (context) => const HomeScreen()),
-                              );
-                            }
-                          },
+                            // Передаємо ім'я користувача у HomeScreen
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => HomeScreen(
+                                  userName: _usernameController.text.trim(),
+                                ),
+                              ),
+                            );
+                          }
+                        },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color.fromARGB(255, 30, 56, 204),
                             foregroundColor: Colors.white,
@@ -160,31 +165,36 @@ class _EduWayState extends State<EduWay> {
                         const SizedBox(height: 16),
 
                         ElevatedButton(
-                          onPressed: () async {
-                            if (_formKey.currentState!.validate()) {
-                              final username = _usernameController.text;
-                              final password = _passwordController.text;
+  onPressed: () async {
+    if (_formKey.currentState!.validate()) {
+      final username = _usernameController.text.trim();
+      final password = _passwordController.text;
 
-                              bool success = await AuthService.login(username, password);
+      bool success = await AuthService.login(username, password);
 
-                              if (context.mounted) {
-                                if (success) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Успішний вхід')),
-                                  );
+      if (context.mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Успішний вхід')),
+          );
 
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const HomeScreen()),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('помилка')),
-                                  );
-                                }
-                              }
-                            }
-                          },
+          // Передаємо ім'я користувача у HomeScreen
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => HomeScreen(
+                userName: username,
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Помилка входу')),
+          );
+        }
+      }
+    }
+  },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color.fromARGB(255, 30, 56, 204),
                             foregroundColor: Colors.white,
