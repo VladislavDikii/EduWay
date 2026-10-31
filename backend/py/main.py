@@ -1,10 +1,12 @@
 import hashlib
 import hmac
 import os
+import secrets
 import time
+from typing import Optional
 
 import psycopg
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from psycopg import errors
 from pydantic import BaseModel, Field
@@ -50,6 +52,15 @@ def init_db():
                         password_hash BYTEA NOT NULL
                     )"""
                 )
+                # сессии: один вход = одна строка. Выход = удаление строки.
+                conn.execute(
+                    """CREATE TABLE IF NOT EXISTS sessions (
+                        token_hash TEXT PRIMARY KEY,
+                        user_id INTEGER NOT NULL
+                            REFERENCES users(id) ON DELETE CASCADE,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    )"""
+                )
             return
         except psycopg.OperationalError:
             time.sleep(1)
@@ -61,6 +72,32 @@ init_db()
 
 def hash_password(password: str, salt: bytes) -> bytes:
     return hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200_000)
+
+
+def hash_token(token: str) -> str:
+    # в базе храним только хэш токена, а не сам токен
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def get_token(authorization: Optional[str] = Header(default=None)) -> str:
+    # ожидаем заголовок:  Authorization: Bearer <token>
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="not authenticated")
+    return authorization[len("Bearer "):].strip()
+
+
+def current_user(token: str = Depends(get_token)) -> dict:
+    """Зависимость для защищённых эндпоинтов: без активной сессии -> 401."""
+    token_hash = hash_token(token)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT u.id, u.username FROM sessions s "
+            "JOIN users u ON u.id = s.user_id WHERE s.token_hash = %s",
+            (token_hash,),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=401, detail="not authenticated")
+    return {"id": row[0], "username": row[1], "token_hash": token_hash}
 
 
 class Credentials(BaseModel):
@@ -97,13 +134,38 @@ def login(data: Credentials):
 
     with get_db() as conn:
         row = conn.execute(
-            "SELECT salt, password_hash FROM users WHERE username = %s",
+            "SELECT id, salt, password_hash FROM users WHERE username = %s",
             (username,),
         ).fetchone()
 
     if row is None or not hmac.compare_digest(
-        hash_password(data.password, row[0]), row[1]
+        hash_password(data.password, row[1]), row[2]
     ):
         raise HTTPException(status_code=401, detail="wrong username or password")
 
-    return {"message": "ok", "username": username}
+    # вход успешен -> создаём сессию и отдаём токен клиенту
+    token = secrets.token_urlsafe(32)
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO sessions (token_hash, user_id) VALUES (%s, %s)",
+            (hash_token(token), row[0]),
+        )
+
+    return {"message": "ok", "username": username, "token": token}
+
+
+@app.post("/api/logout")
+def logout(user: dict = Depends(current_user)):
+    """Кнопка «Выйти»: завершает сессию (удаляет токен из базы)."""
+    with get_db() as conn:
+        conn.execute(
+            "DELETE FROM sessions WHERE token_hash = %s", (user["token_hash"],)
+        )
+    return {"message": "logged out"}
+
+
+@app.get("/api/me")
+def me(user: dict = Depends(current_user)):
+    """Пример защищённого эндпоинта: после выхода отдаёт 401."""
+    return {"username": user["username"]}
+ 
