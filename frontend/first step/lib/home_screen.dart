@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:particles_fly/particles_fly.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/cupertino.dart';
+import 'test_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -172,17 +173,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: GoogleFonts.pixelifySans(
                                 textStyle: TextStyle(
                                   color: textColor,
-                                  fontSize: 30,
+                                  fontSize: 33,
                                   fontWeight: FontWeight.bold,
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Text(
-                              'Шлях до освіти',
-                              style: GoogleFonts.roboto(
-                                color: subtitleColor,
-                                fontSize: 12,
                               ),
                             ),
                           ],
@@ -190,29 +183,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         Row(
                           children: [
-                            NavItem(
-                              title: 'Home',
-                              icon: CupertinoIcons.home,
-                              isActive: isHomeActive,
-                              textColor: textColor,
-                              onTap: () => changeTab('Home'),
-                            ),
-                            const SizedBox(width: 12),
-                            NavItem(
-                              title: 'Topics',
-                              icon: CupertinoIcons.doc_on_doc,
-                              isActive: isTopicsActive,
-                              textColor: textColor,
-                              onTap: () => changeTab('Topics'),
-                            ),
-                            const SizedBox(width: 12),
-                            NavItem(
-                              title: 'You',
-                              icon: CupertinoIcons.person,
-                              isActive: isYouActive,
-                              textColor: textColor,
-                              onTap: () => changeTab('You'),
-                            ),
+                           NavItem(
+                            title: 'Home',
+                            icon: CupertinoIcons.home,
+                            isActive: isHomeActive,
+                            textColor: textColor,
+                            onTap: () => changeTab('Home'),
+                          ),
+                          const SizedBox(width: 12),
+                          NavItem(
+                            title: 'Topics',
+                            icon: CupertinoIcons.doc_on_doc,
+                            isActive: isTopicsActive,
+                            textColor: textColor,
+                            onTap: () => changeTab('Topics'),
+                          ),
+                          const SizedBox(width: 12),
+                          NavItem(
+                            title: 'You',
+                            icon: CupertinoIcons.person,
+                            isActive: isYouActive,
+                            textColor: textColor,
+                            onTap: () => changeTab('You'),
+                          ),
                           ],
                         ),
 
@@ -547,7 +540,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
                     ),
                     trailing: Icon(Icons.arrow_forward_ios_rounded, color: subtitleColor, size: 16),
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TestScreen(
+                        topicTitle: topics[index],
+                        subjectTitle: 'Математичний аналіз',
+                        questions: const [
+                          {
+                            'question': 'Чому дорівнює границя lim(x→2) (x + 3)?',
+                            'options': ['2', '3', '5', '6'],
+                            'correctIndex': 2,
+                          },
+                          {
+                            'question': 'Чому дорівнює lim(x→3) (x² − 1)?',
+                            'options': ['6', '8', '9', '10'],
+                            'correctIndex': 1,
+                          },
+                        ],
+                      ),
+                      ));
+                    },
                   ),
                 );
               },

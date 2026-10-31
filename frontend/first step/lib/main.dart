@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:particles_fly/particles_fly.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/auth_service.dart';
-import 'home_screen.dart'; // Твой импорт главного экрана
+import 'home_screen.dart';
 
 void main() {
   runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false, // Прибирає червону стрічку DEBUG
+    debugShowCheckedModeBanner: false,
     home: EduWay(),
-  )); 
+  ));
 }
 
 class EduWay extends StatefulWidget {
@@ -45,12 +45,11 @@ class _EduWayState extends State<EduWay> {
             width: screenWidth,
             connectDots: true,
             numberOfParticles: 50,
-            particleColor: Colors.white, 
+            particleColor: Colors.white,
             maxParticleSize: 2,
             speedOfParticles: 1.5,
             lineColor: const Color.fromARGB(255, 250, 250, 252),
           ),
-
           Center(
             child: SingleChildScrollView(
               child: Column(
@@ -66,9 +65,7 @@ class _EduWayState extends State<EduWay> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 32),
-
                   Form(
                     key: _formKey,
                     child: Column(
@@ -99,7 +96,6 @@ class _EduWayState extends State<EduWay> {
                                     return null;
                                   },
                                 ),
-
                                 TextFormField(
                                   controller: _passwordController,
                                   obscureText: true,
@@ -115,7 +111,7 @@ class _EduWayState extends State<EduWay> {
                                       return 'Введіть пароль';
                                     }
                                     if (value.length < 6) {
-                                      return 'Пароль має містити від 6 symbols';
+                                      return 'Пароль має містити від 6 символів';
                                     }
                                     return null;
                                   },
@@ -124,27 +120,47 @@ class _EduWayState extends State<EduWay> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 24),
 
+                        // Кнопка реєстрації
                         ElevatedButton(
-                        onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Зареєстровано')),
-                            );
+                          onPressed: () async {
+                            if (_formKey.currentState!.validate()) {
+                              final username = _usernameController.text.trim();
+                              final password = _passwordController.text;
 
-                            // Передаємо ім'я користувача у HomeScreen
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => HomeScreen(
-                                  userName: _usernameController.text.trim(),
-                                ),
-                              ),
-                            );
-                          }
-                        },
+                              int statusCode = await AuthService.register(username, password);
+
+                              if (!context.mounted) return;
+
+                              if (context.mounted) {
+                                if (statusCode == 201) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Акаунт успішно створено!')),
+                                  );
+
+                                  await AuthService.login(username, password);
+
+                                  if (!context.mounted) return;
+
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => HomeScreen(userName: username),
+                                    ),
+                                  );
+                                } else if (statusCode == 409) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Це ім\'я вже зайняте')),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Помилка реєстрації')),
+                                  );
+                                }
+                              }
+                            }
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color.fromARGB(255, 30, 56, 204),
                             foregroundColor: Colors.white,
@@ -164,37 +180,35 @@ class _EduWayState extends State<EduWay> {
 
                         const SizedBox(height: 16),
 
+                        // Кнопка входу в наявний акаунт
                         ElevatedButton(
-  onPressed: () async {
-    if (_formKey.currentState!.validate()) {
-      final username = _usernameController.text.trim();
-      final password = _passwordController.text;
+                          onPressed: () async {
+                            if (_formKey.currentState!.validate()) {
+                              final username = _usernameController.text.trim();
+                              final password = _passwordController.text;
 
-      bool success = await AuthService.login(username, password);
+                              bool success = await AuthService.login(username, password);
 
-      if (context.mounted) {
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Успішний вхід')),
-          );
+                              if (context.mounted) {
+                                if (success) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Успішний вхід')),
+                                  );
 
-          // Передаємо ім'я користувача у HomeScreen
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => HomeScreen(
-                userName: username,
-              ),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Помилка входу')),
-          );
-        }
-      }
-    }
-  },
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => HomeScreen(userName: username),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Невірне ім\'я або пароль')),
+                                  );
+                                }
+                              }
+                            }
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color.fromARGB(255, 30, 56, 204),
                             foregroundColor: Colors.white,
