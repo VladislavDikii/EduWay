@@ -1,28 +1,17 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 class AuthService {
-  // Зберігаємо токен у пам'яті застосунку
-  static String? _authToken;
+  // on the Android emulator use http://10.0.2.2:8000
+  static const String baseUrl = 'http://127.0.0.1:8000';
 
-  // Після появи бекенду розкоментувати адресу та HTTP-запити
-  // static const String baseUrl = 'http://localhost:8000';
+  // name of the logged in user (the tickets API identifies users by name)
+  static String? _username;
 
-  // Вхід у застосунок (Тимчасова імітація)
+  static String? get currentUser => _username;
+
   static Future<bool> login(String username, String password) async {
-    // Імітуємо невеличку затримку мережі (500 мс)
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Тимчасово приймаємо будь-який пароль довжиною від 6 символів
-    if (username.isNotEmpty && password.length >= 6) {
-      _authToken = 'fake_mock_token_for_$username';
-      debugPrint('Успішний mock-вхід! Токен: $_authToken');
-      return true;
-    }
-
-    return false;
-
-    /* 
-     HTTP-запит після розгортання бекенду:
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/login'),
@@ -30,8 +19,7 @@ class AuthService {
         body: jsonEncode({'username': username, 'password': password}),
       );
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _authToken = data['token'] ?? data['access_token'];
+        _username = username;
         return true;
       }
       return false;
@@ -39,37 +27,10 @@ class AuthService {
       debugPrint('Connection error: $e');
       return false;
     }
-    */
   }
 
-  // Отримання токену для інших екранів 
-  static String? getToken() {
-    return _authToken;
-  }
-
-  // Вихід з акаунту
-  static void logout() {
-    _authToken = null;
-  }
-
-  // Реєстрація користувача (Тимчасова імітація)
+  // returns the status code: 201 ok, 409 taken, 422 bad input, -1 no connection
   static Future<int> register(String username, String password) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Тимчасова перевірка: якщо ім'я "admin", вдаємо що воно зайняте (код 409)
-    if (username.toLowerCase() == 'admin') {
-      return 409;
-    }
-
-    // Всі інші імена реєструються успішно (код 201)
-    if (username.isNotEmpty && password.length >= 6) {
-      return 201;
-    }
-
-    return 422;
-
-    /* 
-     HTTP-запит після розгортання бекенду:
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/register'),
@@ -78,8 +39,12 @@ class AuthService {
       );
       return response.statusCode;
     } catch (e) {
+      debugPrint('Connection error: $e');
       return -1;
     }
-    */
+  }
+
+  static void logout() {
+    _username = null;
   }
 }

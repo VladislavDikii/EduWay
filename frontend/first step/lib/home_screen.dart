@@ -4,6 +4,7 @@ import 'package:particles_fly/particles_fly.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/cupertino.dart';
 import 'test_screen.dart';
+import 'services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -24,26 +25,73 @@ class _HomeScreenState extends State<HomeScreen> {
   // --- СТАН ДЛЯ ТЕМ ТА ПРЕДМЕТІВ ---
   String _selectedSubject = 'Математичний аналіз';
 
-  final Map<String, List<String>> _subjectTopics = {
-    'Математичний аналіз': [
-      'Тема 1: Границі та неперервність функцій',
-      'Тема 2: Похідна та її застосування',
-      'Тема 3: Невизначений та визначений інтеграли',
-      'Тема 4: Диференціальні рівняння',
-    ],
-    'Історія України': [
-      'Тема 1: Київська Русь та її розквіт',
-      'Тема 2: Козацька доба та Гетьманщина',
-      'Тема 3: Україна в XIX столітті',
-      'Тема 4: Українська революція 1917–1921 рр.',
-    ],
-  };
+  List<dynamic> _subjects = [];
+  List<dynamic> _topics = [];
+  bool _topicsLoading = false;
 
-  void _openSubjectTopics(String subjectName) {
+  Future<void> _loadSubjects() async {
+    try {
+      final subjects = await ApiService.getSubjects();
+      if (!mounted) return;
+      setState(() => _subjects = subjects);
+    } catch (e) {
+      debugPrint('Subjects error: $e');
+    }
+  }
+
+  Future<void> _openSubjectTopics(String subjectName) async {
     setState(() {
       _selectedSubject = subjectName;
-      _selectedTab = 'Topics'; // Перемикаємо вкладку
+      _selectedTab = 'Topics';
+      _topics = [];
+      _topicsLoading = true;
     });
+    try {
+      if (_subjects.isEmpty) await _loadSubjects();
+      final subject = _subjects.firstWhere((s) => s['name'] == subjectName);
+      final topics = await ApiService.getTopics(subject['id'] as int);
+      if (!mounted) return;
+      setState(() {
+        _topics = topics;
+        _topicsLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Topics error: $e');
+      if (!mounted) return;
+      setState(() => _topicsLoading = false);
+    }
+  }
+
+  Future<void> _openTopic(Map<String, dynamic> topic) async {
+    try {
+      final data = await ApiService.getTopicQuestions(topic['id'] as int);
+      if (!mounted) return;
+      // TestScreen expects the keys: question, options, correctIndex
+      final questions = data
+          .map((q) => {
+                'id': q['id'],
+                'question': q['text'],
+                'options': q['options'],
+                'correctIndex': q['correct_index'],
+              })
+          .toList();
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TestScreen(
+            topicTitle: 'Тема ${topic['pos']}: ${topic['name']}',
+            subjectTitle: _selectedSubject,
+            questions: questions,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Questions error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не вдалося завантажити питання')),
+      );
+    }
   }
 
   late Map<String, String> _currentQuote;
@@ -74,11 +122,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSubjects();
     _educationQuotes.shuffle();
     _currentQuote = _educationQuotes.first;
   }
 
   void changeTab(String newTab) {
+    // opening Topics from the menu: load the topics if there are none yet
+    if (newTab == 'Topics' && _topics.isEmpty && !_topicsLoading) {
+      _openSubjectTopics(_selectedSubject);
+      return;
+    }
     setState(() {
       _selectedTab = newTab;
     });
@@ -484,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTopicsPage(Color surfaceColor, Color textColor, Color subtitleColor) {
-    final topics = _subjectTopics[_selectedSubject] ?? [];
+    final topics = _topics;
 
     return SingleChildScrollView(
       child: Container(
@@ -513,6 +567,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 20),
 
+            if (_topicsLoading)
+              const Center(child: CircularProgressIndicator()),
+
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -536,32 +593,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     title: Text(
-                      topics[index],
+                      'Тема ${topics[index]['pos']}: ${topics[index]['name']}',
                       style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
                     ),
                     trailing: Icon(Icons.arrow_forward_ios_rounded, color: subtitleColor, size: 16),
-                    onTap: () {
-                      Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TestScreen(
-                        topicTitle: topics[index],
-                        subjectTitle: 'Математичний аналіз',
-                        questions: const [
-                          {
-                            'question': 'Чому дорівнює границя lim(x→2) (x + 3)?',
-                            'options': ['2', '3', '5', '6'],
-                            'correctIndex': 2,
-                          },
-                          {
-                            'question': 'Чому дорівнює lim(x→3) (x² − 1)?',
-                            'options': ['6', '8', '9', '10'],
-                            'correctIndex': 1,
-                          },
-                        ],
-                      ),
-                      ));
-                    },
+                    onTap: () => _openTopic(topics[index] as Map<String, dynamic>),
                   ),
                 );
               },
