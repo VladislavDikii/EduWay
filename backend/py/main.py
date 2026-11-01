@@ -9,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from psycopg import errors
 from pydantic import BaseModel, Field
 
+import tickets
+
 # connection settings come from environment variables
 # (defaults are only for local development)
 DB_HOST = os.getenv("DB_HOST", "localhost")
@@ -25,6 +27,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(tickets.router)
 
 
 def get_db():

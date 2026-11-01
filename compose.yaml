@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: eduway
+      POSTGRES_PASSWORD: eduway
+      POSTGRES_DB: eduway
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eduway -d eduway"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend/py
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: eduway
+      DB_USER: eduway
+      DB_PASSWORD: eduway
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  seed:
+    build: ./database
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: eduway
+      DB_USER: eduway
+      DB_PASSWORD: eduway
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  pgdata:
