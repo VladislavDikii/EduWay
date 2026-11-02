@@ -4,6 +4,8 @@ import 'package:particles_fly/particles_fly.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/cupertino.dart';
 import 'test_screen.dart';
+import 'services/auth_service.dart';
+import 'main.dart'; 
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -583,13 +585,82 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Профіль користувача', style: GoogleFonts.pixelifySans(textStyle: TextStyle(color: textColor, fontSize: 28))),
+          Text(
+            'Профіль користувача', 
+            style: GoogleFonts.pixelifySans(textStyle: TextStyle(color: textColor, fontSize: 28)),
+          ),
           const SizedBox(height: 12),
-          Text('Тут відображається ваш прогрес.', style: TextStyle(color: textColor.withValues(alpha: 0.7), fontSize: 16)),
+          
+          Row(
+            children: [
+              const CircleAvatar( 
+                radius: 30,
+                backgroundColor: Color(0xFF2563EB),
+                child: Icon(Icons.person, size: 35, color: Colors.white),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.userName,
+                    style: TextStyle(color: textColor, fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'Статус: Студент',
+                    style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 14),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          
+          const Divider(height: 40, color: Colors.white24),
+          
+          Text(
+            'Тут відображається ваш прогрес.', 
+            style: TextStyle(color: textColor.withValues(alpha: 0.7), fontSize: 16),
+          ),
+          
+          const Spacer(), 
+          
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                await AuthService.logout();
+
+                // Виправляє помилку "async gaps": перевіряємо, чи екран ще існує
+                if (!mounted) return; 
+
+                // Перехід на екран авторизації
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const EduWay()), // Додано const (виправляє попередження №4)
+                  (route) => false,
+                );
+              },
+              icon: const Icon(Icons.logout_rounded, color: Colors.white),
+              label: const Text(
+                'Вийти з акаунту',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color.fromARGB(255, 64, 4, 104),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 4,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+
+
 
   Widget _buildSubjectCard({
     required String title,

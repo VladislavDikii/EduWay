@@ -47,9 +47,27 @@ class AuthService {
     return _authToken;
   }
 
-  // Вихід з акаунту
-  static void logout() {
+  // Вихід з акаунту (Асинхронний метод для сумісності з UI)
+  static Future<void> logout() async {
     _authToken = null;
+    debugPrint('Користувач вийшов з акаунту. Токен очищено.');
+
+    /* 
+     HTTP-запит після розгортання бекенду (якщо серверу потрібно повідомити про логаут):
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/api/logout'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_authToken',
+        },
+      );
+    } catch (e) {
+      debugPrint('Logout network error: $e');
+    } finally {
+      _authToken = null;
+    }
+    */
   }
 
   // Реєстрація користувача (Тимчасова імітація)
