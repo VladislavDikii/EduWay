@@ -4,6 +4,7 @@ import os
 import time
 
 import psycopg
+import questions
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from psycopg import errors
@@ -28,7 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(tickets.router)
-
+app.include_router(questions.router)
 
 def get_db():
     return psycopg.connect(

@@ -5,7 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/cupertino.dart';
 import 'test_screen.dart';
 import 'services/auth_service.dart';
-import 'main.dart'; 
+import 'main.dart'; // або файл, де знаходиться ваш клас EduWay
+
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -574,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildYouPage(Color surfaceColor, Color textColor) {
+   Widget _buildYouPage(Color surfaceColor, Color textColor) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -591,9 +592,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           
+          // Блок з інформацією про студента
           Row(
             children: [
-              const CircleAvatar( 
+              const CircleAvatar(
                 radius: 30,
                 backgroundColor: Color(0xFF2563EB),
                 child: Icon(Icons.person, size: 35, color: Colors.white),
@@ -622,22 +624,24 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(color: textColor.withValues(alpha: 0.7), fontSize: 16),
           ),
           
-          const Spacer(), 
+          const Spacer(), // Зміщує кнопку в самий низ екрана
           
+          // Червона кнопка виходу з акаунту
           SizedBox(
             width: double.infinity,
             height: 50,
             child: ElevatedButton.icon(
               onPressed: () async {
+                // 1. Очищаємо фейковий токен у пам'яті застосунку
                 await AuthService.logout();
 
-                // Виправляє помилку "async gaps": перевіряємо, чи екран ще існує
+                // 2. Безпечно перевіряємо віджет в асинхронному потоці
                 if (!mounted) return; 
 
-                // Перехід на екран авторизації
+                // 3. Скидаємо навігацію та повертаємо на екран логіну (EduWay)
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => const EduWay()), // Додано const (виправляє попередження №4)
+                  MaterialPageRoute(builder: (context) => const EduWay()),
                   (route) => false,
                 );
               },
@@ -647,7 +651,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 64, 4, 104),
+                backgroundColor: const Color.fromARGB(255, 141, 0, 0),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -659,7 +663,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
 
 
   Widget _buildSubjectCard({
