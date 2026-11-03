@@ -3,22 +3,22 @@ import 'package:google_fonts/google_fonts.dart';
 
 class TestScreen extends StatefulWidget {
   final String topicTitle; //зберігається назва обраної теми
-  final List questions;    //передаєм список запитань
+  final List dynamicQuestions; //передаєм список запитань
   final String subjectTitle;
 
   const TestScreen({
     super.key,
-    required this.questions,
+    required List questions,
     required this.topicTitle, //змінна є обов'язкова при виклику екрану
     required this.subjectTitle,
-  });
+  }) : dynamicQuestions = questions;
 
   @override
   State<TestScreen> createState() => _TestScreenState(); //метод який відповідає за логіку інтерфейсу
 }
 
 class _TestScreenState extends State<TestScreen> {
- // false = режим перегляду запитань (за замовчуванням)
+  // false = режим перегляду запитань (за замовчуванням)
   // true = режим проходження тесту
   bool _isTestingMode = false;
 
@@ -26,13 +26,42 @@ class _TestScreenState extends State<TestScreen> {
   int? _selected; //зберігає індекс відповіді
   int _score = 0; //кількість правильних
 
-//функція переходу до наступного питання
-void _nextQuestion() {
-    if (_selected == widget.questions[_item]['correctIndex']) {
-      _score++;
+  int _safeParseInt(dynamic value) {
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  int _getCorrectIndex(Map q) {
+    final raw = q['correctIndex'] ?? q['correct_index'] ?? q['correct'];
+    return _safeParseInt(raw);
+  }
+
+  List<String> _getOptions(Map q) {
+    final rawOpts = q['options'] ?? q['answers'];
+    if (rawOpts is List) {
+      return rawOpts.map((e) => e.toString()).toList();
+    }
+    return [];
+  }
+
+  String _getQuestionText(Map q) {
+    final text = q['question'] ?? q['text'] ?? q['title'];
+    return text?.toString() ?? 'Питання без тексту';
+  }
+
+  void _nextQuestion() {
+    if (_item < widget.dynamicQuestions.length) {
+      final rawQ = widget.dynamicQuestions[_item];
+      if (rawQ is Map) {
+        final int correctIdx = _getCorrectIndex(rawQ);
+        if (_selected == correctIdx) {
+          _score++;
+        }
+      }
     }
 
-    if (_item < widget.questions.length - 1) {
+    if (_item < widget.dynamicQuestions.length - 1) {
       setState(() {
         _item++;
         _selected = null;
@@ -57,15 +86,15 @@ void _nextQuestion() {
         ),
         //текст усередині вікна
         content: Text(
-          'Твій результат: $_score з ${widget.questions.length} правильних відповідей!',
+          'Твій результат: $_score з ${widget.dynamicQuestions.length} правильних відповідей!',
           style: const TextStyle(color: Colors.white70, fontSize: 16),
         ),
         //Список кнопок у нижній частині діалогового вікна
         actions: [
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context); // Закрити діалог
-              Navigator.pop(context); // Повернутися на HomeScreen
+              Navigator.pop(context);
+              Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2563EB),
@@ -77,89 +106,151 @@ void _nextQuestion() {
     );
   }
 
-@override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0E1224),
-      appBar: AppBar( //Верхня шапка екрана
+  Future<bool> _onWillPop() async {
+    if (!_isTestingMode) return true;
+
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF15131F),
-        elevation: 0, //Прибирає тінь під панеллю
-        leading: IconButton( //кнопка повернення назад
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-          onPressed: () {
-            if (_isTestingMode) {
-              // Якщо натиснули "Назад" під час тесту — повертаємо до перегляду
-              setState(() {
-                _isTestingMode = false;
-                _item = 0;
-                _selected = null;
-                _score = 0;
-              });
-            } else {
-              Navigator.pop(context);
-            }
-          },
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Перервати тест?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Ваш поточний прогрес у тесті буде втрачено.',
+          style: TextStyle(color: Colors.white70),
         ),
-        title: Row(
-          children: [
-            // Тег предмета
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.white70),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                widget.subjectTitle,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-              ),
-            ),
-            const SizedBox(width: 10),
-            // Тег теми
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.white70),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                widget.topicTitle,
-                style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 14),
-              ),
-            ),
-          ],
-        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Продовжити', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Вийти', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000), // Оптимальна ширина для десктопа
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: _isTestingMode ? _buildTestMode() : _buildOverviewMode(),
+    );
+
+    if (shouldLeave == true) {
+      setState(() {
+        _isTestingMode = false;
+        _item = 0;
+        _selected = null;
+        _score = 0;
+      });
+    }
+    return shouldLeave ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isTestingMode,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop && _isTestingMode) {
+          await _onWillPop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0E1224),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF15131F),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            onPressed: () async {
+              if (_isTestingMode) {
+                final shouldLeave = await _onWillPop();
+                if (shouldLeave && context.mounted) {
+                  Navigator.pop(context);
+                }
+              } else {
+                Navigator.pop(context);
+              }
+            },
+          ),
+          title: Row(
+            children: [
+              // Тег предмета
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white70),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  widget.subjectTitle,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Тег теми
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.white70),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    widget.topicTitle,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: _isTestingMode ? _buildTestMode() : _buildOverviewMode(),
+            ),
           ),
         ),
       ),
     );
   }
 
-  // 1. РЕЖИМ ПЕРЕГЛЯДУ (СІТКА 2 СТОВПЧИКИ + КНОПКА START)
   Widget _buildOverviewMode() {
+    if (widget.dynamicQuestions.isEmpty) {
+      return const Center(
+        child: Text(
+          'У цій темі поки немає завантажених питань.',
+          style: TextStyle(color: Colors.white70, fontSize: 16),
+        ),
+      );
+    }
+
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final int crossAxisCount = screenWidth < 700 ? 1 : 2;
+
     return Stack(
       children: [
-        // Двоколоночна сітка із запитаннями
         GridView.builder(
-          padding: const EdgeInsets.only(bottom: 80.0), // Відступ знизу, щоб кнопка Start не перекривала вміст
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, // 2 колонки як на макеті
+          padding: const EdgeInsets.only(bottom: 80.0),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio: 1.6, // Співвідношення сторін картки
+            childAspectRatio: crossAxisCount == 1 ? 2.2 : 1.6,
           ),
-          itemCount: widget.questions.length,
+          itemCount: widget.dynamicQuestions.length,
           itemBuilder: (context, qIndex) {
-            final q = widget.questions[qIndex];
-            final options = List<String>.from(q['options']);
-            final correctIdx = q['correctIndex'] as int;
+            final rawQ = widget.dynamicQuestions[qIndex];
+            final Map q = (rawQ is Map) ? rawQ : {};
+
+            final String questionText = _getQuestionText(q);
+            final List<String> options = _getOptions(q);
+            final int rawIdx = _getCorrectIndex(q);
+
+            final int correctIdx = (rawIdx < options.length && rawIdx >= 0) ? rawIdx : 0;
+            final String answerText = options.isNotEmpty ? options[correctIdx] : 'Варіанти відсутні';
 
             return Container(
               padding: const EdgeInsets.all(16.0),
@@ -177,7 +268,7 @@ void _nextQuestion() {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    q['question'],
+                    questionText,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
@@ -186,12 +277,11 @@ void _nextQuestion() {
                     padding: EdgeInsets.symmetric(vertical: 8.0),
                     child: Divider(color: Colors.white24, height: 1),
                   ),
-                  // Відображення правильної відповіді
                   Expanded(
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Відповідь: ${options[correctIdx]}',
+                        'Відповідь: $answerText',
                         style: const TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -201,8 +291,6 @@ void _nextQuestion() {
             );
           },
         ),
-
-        // Спливаюча (плаваюча) кнопка "START" по центру знизу
         Positioned(
           bottom: 16,
           left: 0,
@@ -212,11 +300,13 @@ void _nextQuestion() {
               width: 180,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _isTestingMode = true; // Запуск тесту
-                  });
-                },
+                onPressed: widget.dynamicQuestions.isNotEmpty
+                    ? () {
+                        setState(() {
+                          _isTestingMode = true;
+                        });
+                      }
+                    : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   shape: RoundedRectangleBorder(
@@ -242,16 +332,23 @@ void _nextQuestion() {
     );
   }
 
-      // 2. РЕЖИМ ПРОХОДЖЕННЯ ТЕСТУ
   Widget _buildTestMode() {
-    final currentQuestion = widget.questions[_item];
-    final double progress = (_item + 1) / widget.questions.length;
-    final List<String> options = List<String>.from(currentQuestion['options']);
+    if (widget.dynamicQuestions.isEmpty) {
+      return const Center(
+        child: Text('Питань немає', style: TextStyle(color: Colors.white)),
+      );
+    }
+
+    final rawQ = widget.dynamicQuestions[_item];
+    final Map currentQuestion = (rawQ is Map) ? rawQ : {};
+    
+    final double progress = (_item + 1) / widget.dynamicQuestions.length;
+    final String questionText = _getQuestionText(currentQuestion);
+    final List<String> options = _getOptions(currentQuestion);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Індикатор прогресу
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: LinearProgressIndicator(
@@ -262,8 +359,6 @@ void _nextQuestion() {
           ),
         ),
         const SizedBox(height: 24),
-
-        // Картка з питанням
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24.0),
@@ -273,13 +368,11 @@ void _nextQuestion() {
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Text(
-            currentQuestion['question'],
+            questionText,
             style: GoogleFonts.roboto(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
           ),
         ),
         const SizedBox(height: 20),
-
-        // Варіанти відповідей
         Expanded(
           child: ListView.builder(
             itemCount: options.length,
@@ -322,8 +415,6 @@ void _nextQuestion() {
             },
           ),
         ),
-
-        // Кнопка "Наступне питання" / "Завершити тест"
         SizedBox(
           width: double.infinity,
           height: 52,
@@ -335,7 +426,7 @@ void _nextQuestion() {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: Text(
-              _item == widget.questions.length - 1 ? 'Завершити тест' : 'Наступне питання',
+              _item == widget.dynamicQuestions.length - 1 ? 'Завершити тест' : 'Наступне питання',
               style: TextStyle(
                 color: _selected != null ? Colors.white : Colors.white38,
                 fontSize: 16,

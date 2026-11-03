@@ -1,55 +1,30 @@
+import 'dart:convert';
 import 'dart:ui'; 
 import 'package:flutter/material.dart';
 import 'package:particles_fly/particles_fly.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:http/http.dart' as http;
 import 'test_screen.dart';
 import 'services/auth_service.dart';
-import 'main.dart'; // або файл, де знаходиться ваш клас EduWay
-
+import 'main.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String userName;
-
-  const HomeScreen({
+  final String userName; //зберігає ім'я користувача, передане з екрану входу
+  const HomeScreen({ 
     super.key, 
-    this.userName = 'Студент',
+    this.userName = 'Студент', // Значення за замовчуванням, якщо ім'я не передане
   });
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState(); //створює стан для HomeScreen
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _isDarkMode = true;
-  String _selectedTab = 'Home';
-
-  // --- СТАН ДЛЯ ТЕМ ТА ПРЕДМЕТІВ ---
-  String _selectedSubject = 'Математичний аналіз';
-
-  final Map<String, List<String>> _subjectTopics = {
-    'Математичний аналіз': [
-      'Тема 1: Границі та неперервність функцій',
-      'Тема 2: Похідна та її застосування',
-      'Тема 3: Невизначений та визначений інтеграли',
-      'Тема 4: Диференціальні рівняння',
-    ],
-    'Історія України': [
-      'Тема 1: Київська Русь та її розквіт',
-      'Тема 2: Козацька доба та Гетьманщина',
-      'Тема 3: Україна в XIX столітті',
-      'Тема 4: Українська революція 1917–1921 рр.',
-    ],
-  };
-
-  void _openSubjectTopics(String subjectName) {
-    setState(() {
-      _selectedSubject = subjectName;
-      _selectedTab = 'Topics'; // Перемикаємо вкладку
-    });
-  }
-
-  late Map<String, String> _currentQuote;
+  bool _isDarkMode = true; //змінна для відстеження темного режиму
+  String _selectedTab = 'Home'; //змінна для відстеження обраної вкладки
+  String _selectedSubject = 'Математичний аналіз'; //змінна для відстеження обраного предмета
+  late Map<String, String> _currentQuote; //змінна для зберігання поточної цитати
 
   final List<Map<String, String>> _educationQuotes = [
     {
@@ -75,17 +50,65 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _educationQuotes.shuffle();
-    _currentQuote = _educationQuotes.first;
+  void initState() { 
+    super.initState(); //ініціалізація стану, викликається при створенні віджета
+    _educationQuotes.shuffle(); //перемішує список цитат для випадкового відображення
+    _currentQuote = _educationQuotes.first; //встановлює першу цитату як поточну
   }
 
+  //ЗАВАНТАЖЕННЯ ПИТАНЬ З БЕКЕНДУ
+
+  Future<List<dynamic>> _fetchQuestions(int topicId) async {
+    try {
+      final response = await http.get( //змінна для збереження відповіді від API, виконує GET-запит до вказаного URL
+        Uri.parse('http://127.0.0.1:8000/api/topics/$topicId/questions'), //перетворення посилання на URI для запиту до API
+      );
+
+      // Перевірка статусу відповіді від API
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>; //декодування JSON-відповіді та перетворення її на список питань
+      } else {
+        debugPrint('Помилка сервера при отриманні питань: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Помилка підключення до API (питання): $e');
+      return [];
+    }
+  }
+
+  //ЗАВАНТАЖЕННЯ ТЕМ З БЕКЕНДУ
+
+  Future<List<dynamic>> _fetchTopicsForSubject(String subjectName) async {
+    int subjectId = (subjectName == 'Історія України') ? 2 : 1;
+    try {
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/subjects/$subjectId/topics'),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      }
+    } catch (e) {
+      debugPrint('Помилка підключення до API (теми): $e');
+    }
+    return [];
+  }
+
+//ФУНКЦІЇ ДЛЯ ЗМІНИ ВИБРАНОГО ПРЕДМЕТА ТА ВКЛАДКИ
+
+  void _openSubjectTopics(String subjectName) {
+    setState(() {
+      _selectedSubject = subjectName;
+      _selectedTab = 'Topics';
+    });
+  }
   void changeTab(String newTab) {
     setState(() {
       _selectedTab = newTab;
     });
   }
+
+//ФУНКЦІЯ ДЛЯ ЗМІНИ ЦИТАТИ ПРИ ТАПІ
 
   void _onQuoteTap() {
     setState(() {
@@ -97,61 +120,61 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final double screenWidth = MediaQuery.of(context).size.width;
-    final double screenHeight = MediaQuery.of(context).size.height;
+    final double screenWidth = MediaQuery.of(context).size.width; //отримання ширини екрану
+    final double screenHeight = MediaQuery.of(context).size.height; //отримання висоти екрану
 
-    final backgroundColor = _isDarkMode ? const Color(0xFF0E1224) : const Color(0xFFF4F6F9);
-    final surfaceColor = _isDarkMode ? const Color(0xFF15131F) : Colors.white;
-    final textColor = _isDarkMode ? Colors.white : const Color(0xFF1C1E22);
-    final subtitleColor = _isDarkMode ? const Color(0xFF8A94A6) : const Color(0xFF6B7280);
-    final iconColor = _isDarkMode ? Colors.white : const Color(0xFF1C1E22);
-    const primaryBlue = Color(0xFF2563EB);
+    final backgroundColor = _isDarkMode ? const Color(0xFF0E1224) : const Color(0xFFF4F6F9); //встановлення кольору фону
+    final surfaceColor = _isDarkMode ? const Color(0xFF15131F) : Colors.white; //встановлення кольору поверхні для контейнерів
+    final textColor = _isDarkMode ? Colors.white : const Color(0xFF1C1E22); //встановлення кольору тексту
+    final subtitleColor = _isDarkMode ? const Color(0xFF8A94A6) : const Color(0xFF6B7280); //встановлення кольору підзаголовків
+    final iconColor = _isDarkMode ? Colors.white : const Color(0xFF1C1E22); //встановлення кольору іконок
+    const primaryBlue = Color(0xFF2563EB); //встановлення основного синього кольору для кнопок та іконок
 
     final bool isHomeActive = _selectedTab == 'Home';
     final bool isTopicsActive = _selectedTab == 'Topics';
     final bool isYouActive = _selectedTab == 'You';
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
+    return AnimatedContainer( //анімований контейнер для зміни кольору фону
+      duration: const Duration(milliseconds: 400), //тривалість анімації при зміні кольору
       color: backgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: Stack(
+        body: Stack( //віджет для розміщення частинок
           children: [
-            ParticlesFly(
+            ParticlesFly( //віджет для створення анімованих частинок на фоні
               key: ValueKey(_isDarkMode),
               height: screenHeight,
               width: screenWidth,
-              connectDots: true,
-              numberOfParticles: 35,
+              connectDots: true, //з'єднання частинок лініями
+              numberOfParticles: 35, //кількість частинок на екрані
               particleColor: _isDarkMode 
                   ? Colors.white.withValues(alpha: 0.3) 
                   : Colors.black.withValues(alpha: 0.2),
-              maxParticleSize: 2.5,
-              speedOfParticles: 0.8,
-              lineColor: _isDarkMode 
-                  ? Colors.cyanAccent.withValues(alpha: 0.15) 
+              maxParticleSize: 2.5, //максимальний розмір частинок
+              speedOfParticles: 0.8, //швидкість руху частинок
+              lineColor: _isDarkMode //встановлення кольору ліній
+                  ? const Color.fromARGB(255, 252, 252, 252).withValues(alpha: 0.15) 
                   : Colors.black.withValues(alpha: 0.08),
             ),
 
-            Positioned.fill(
+            Positioned.fill( //віджет для розмиття фону за допомогою BackdropFilter
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-                child: Container(color: Colors.transparent),
+                child: Container(color: Colors.transparent), //прозорий контейнер
               ),
             ),
 
             SafeArea(
               child: Column(
                 children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 400),
-                    margin: const EdgeInsets.only(left: 16.0, right: 16.0, top: 12.0, bottom: 8.0),
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
+                  AnimatedContainer( //анімований контейнер для верхньої панелі з логотипом та навігацією
+                    duration: const Duration(milliseconds: 400), //тривалість анімації при зміні кольору та стилю
+                    margin: const EdgeInsets.only(left: 16.0, right: 16.0, top: 12.0, bottom: 8.0), //відступи від країв екрану
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0), //внутрішні відступи всередині контейнера
                     decoration: BoxDecoration(
-                      color: surfaceColor.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(16.0),
-                      border: Border.all(
+                      color: surfaceColor.withValues(alpha: 0.85), //встановлення кольору поверхні з прозорістю
+                      borderRadius: BorderRadius.circular(16.0), //закруглення кутів контейнера
+                      border: Border.all( //встановлення обводки навколо контейнера
                         color: _isDarkMode 
                             ? const Color.fromARGB(255, 68, 73, 99) 
                             : Colors.black.withValues(alpha: 0.1),
@@ -176,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: GoogleFonts.pixelifySans(
                                 textStyle: TextStyle(
                                   color: textColor,
-                                  fontSize: 33,
+                                  fontSize: 35,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -186,11 +209,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         Row(
                           children: [
+                            //Використання NavItem для створення навігаційних кнопок
                            NavItem(
                             title: 'Home',
                             icon: CupertinoIcons.home,
-                            isActive: isHomeActive,
-                            textColor: textColor,
+                            isActive: isHomeActive, //визначає, чи активна вкладка "Home"
+                            textColor: textColor, //встановлює колір тексту для вкладки
                             onTap: () => changeTab('Home'),
                           ),
                           const SizedBox(width: 12),
@@ -215,7 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Row(
                           children: [
                             IconButton(
-                              icon: AnimatedSwitcher(
+                              icon: AnimatedSwitcher( //анімований перемикач для іконки
                                 duration: const Duration(milliseconds: 300),
                                 child: Icon(
                                   _isDarkMode ? Icons.light_mode : Icons.dark_mode,
@@ -254,6 +278,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+//ФУНКЦІЇ ДЛЯ ВІДОБРАЖЕННЯ КОНТЕНТУ ВІДПОВІДНО ДО ВИБРАНОЇ ВКЛАДКИ
+
   Widget _buildBodyContent(Color surfaceColor, Color textColor, Color subtitleColor, Color primaryBlue) {
     switch (_selectedTab) {
       case 'Topics':
@@ -267,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHomePage(Color surfaceColor, Color textColor, Color subtitleColor, Color primaryBlue) {
-    return SingleChildScrollView(
+    return SingleChildScrollView( //дозволяє прокручувати вміст, якщо він перевищує висоту екрану
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -280,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(24.0),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: const LinearGradient( //створює градієнтний фон для контейнера
                       colors: [Color(0xFF1E3A8A), Color(0xFF15131F)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -352,6 +378,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ),
+
+                    // Кнопка для додавання нового предмета
                     ElevatedButton.icon(
                       onPressed: () {},
                       icon: const Icon(Icons.add, size: 18, color: Colors.white),
@@ -372,15 +400,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildSubjectCard(
+                      child: _buildSubjectCard( //створює картку предмета
                         title: 'Математичний аналіз',
                         questionsCount: '45 питань',
                         icon: Icons.calculate_outlined,
-                        iconBgColor: primaryBlue,
-                        surfaceColor: surfaceColor,
+                        iconBgColor: const Color(0xFF2563EB), //встановлює колір фону іконки
+                        surfaceColor: surfaceColor, //встановлює колір поверхні картки
                         textColor: textColor,
-                        subtitleColor: subtitleColor,
-                        onViewTap: () => _openSubjectTopics('Математичний аналіз'),
+                        subtitleColor: subtitleColor, 
+                        onViewTap: () => _openSubjectTopics('Математичний аналіз'), //викликає функцію для відкриття тем предмета
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -408,6 +436,8 @@ class _HomeScreenState extends State<HomeScreen> {
             flex: 1,
             child: Column(
               children: [
+
+                //ВІДЖЕТ ДЛЯ ВІДОБРАЖЕННЯ ОСТАННЬОГО КВИТКА
                 Container(
                   padding: const EdgeInsets.all(16.0),
                   decoration: BoxDecoration(
@@ -454,8 +484,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 16),
 
-                InkWell(
-                  onTap: _onQuoteTap,
+                //ВІДЖЕТ ДЛЯ ВІДОБРАЖЕННЯ ЦИТАТИ
+
+                InkWell( //віджет для обробки натискань на контейнер
+                  onTap: _onQuoteTap, //викликає функцію для зміни цитати
                   borderRadius: BorderRadius.circular(16.0),
                   child: Container(
                     width: double.infinity,
@@ -486,96 +518,113 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTopicsPage(Color surfaceColor, Color textColor, Color subtitleColor) {
-    final topics = _subjectTopics[_selectedSubject] ?? [];
+  //ФУНКЦІЇ ДЛЯ ВІДОБРАЖЕННЯ ТЕМ 
 
-    return SingleChildScrollView(
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: surfaceColor.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _selectedSubject,
-              style: GoogleFonts.pixelifySans(
-                textStyle: TextStyle(color: textColor, fontSize: 28, fontWeight: FontWeight.bold),
+  Widget _buildTopicsPage(Color surfaceColor, Color textColor, Color subtitleColor) {
+    return FutureBuilder<List<dynamic>>(
+      future: _fetchTopicsForSubject(_selectedSubject), //викликає функцію для отримання тем з API
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) { //перевіряє стан підключення до API, якщо очікує відповіді, відображає індикатор завантаження
+          return const Center(child: CircularProgressIndicator()); //індикатор завантаження
+        }
+
+        final dbTopics = snapshot.data ?? []; //отримує дані з API або порожній список, якщо дані відсутні
+
+        return SingleChildScrollView( //віджет для прокручування вмісту
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: surfaceColor.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Обирайте тему для перегляду та проходження квитків:',
-              style: TextStyle(color: subtitleColor, fontSize: 14),
-            ),
-            const SizedBox(height: 20),
-
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: topics.length,
-              itemBuilder: (context, index) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1),
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _selectedSubject,
+                  style: GoogleFonts.pixelifySans(
+                    textStyle: TextStyle(color: textColor, fontSize: 28, fontWeight: FontWeight.bold),
                   ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: const Color(0xFF2563EB),
-                      child: Text(
-                        '${index + 1}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    title: Text(
-                      topics[index],
-                      style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
-                    ),
-                    trailing: Icon(Icons.arrow_forward_ios_rounded, color: subtitleColor, size: 16),
-                    onTap: () {
-                      Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TestScreen(
-                        topicTitle: topics[index],
-                        subjectTitle: 'Математичний аналіз',
-                        questions: const [
-                          {
-                            'question': 'Чому дорівнює границя lim(x→2) (x + 3)?',
-                            'options': ['2', '3', '5', '6'],
-                            'correctIndex': 2,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Обирайте тему для перегляду та проходження квитків:',
+                  style: TextStyle(color: subtitleColor, fontSize: 14),
+                ),
+                const SizedBox(height: 20),
+
+                if (dbTopics.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20.0),
+                    child: Text('Теми не знайдені або БД не запущена.', style: TextStyle(color: Colors.white70)),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: dbTopics.length,
+                    itemBuilder: (context, index) {
+                      final topicData = dbTopics[index];
+                      final int realTopicId = topicData['id'];
+                      final String topicName = topicData['name'] ?? 'Тема ${index + 1}';
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: const Color(0xFF2563EB),
+                            child: Text(
+                              '${index + 1}',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          title: Text(
+                            topicName,
+                            style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+                          ),
+                          trailing: Icon(Icons.arrow_forward_ios_rounded, color: subtitleColor, size: 16),
+                          onTap: () async {
+                            final navigator = Navigator.of(context);
+                            
+                            // Запит за правильним topic_id з БД
+                            final questions = await _fetchQuestions(realTopicId);
+
+                            if (!mounted) return;
+
+                            navigator.push(
+                              MaterialPageRoute(
+                                builder: (context) => TestScreen(
+                                  topicTitle: topicName,
+                                  subjectTitle: _selectedSubject,
+                                  questions: questions,
+                                ),
+                              ),
+                            );
                           },
-                          {
-                            'question': 'Чому дорівнює lim(x→3) (x² − 1)?',
-                            'options': ['6', '8', '9', '10'],
-                            'correctIndex': 1,
-                          },
-                        ],
-                      ),
-                      ));
+                        ),
+                      );
                     },
                   ),
-                );
-              },
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-   Widget _buildYouPage(Color surfaceColor, Color textColor) {
+  Widget _buildYouPage(Color surfaceColor, Color textColor) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -592,7 +641,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           
-          // Блок з інформацією про студента
+           // Блок з інформацією про студента
           Row(
             children: [
               const CircleAvatar(
@@ -626,7 +675,7 @@ class _HomeScreenState extends State<HomeScreen> {
           
           const Spacer(), // Зміщує кнопку в самий низ екрана
           
-          // Червона кнопка виходу з акаунту
+           // Червона кнопка виходу з акаунту
           SizedBox(
             width: double.infinity,
             height: 50,
