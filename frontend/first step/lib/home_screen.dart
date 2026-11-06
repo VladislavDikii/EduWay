@@ -605,6 +605,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             navigator.push(
                               MaterialPageRoute(
                                 builder: (context) => TestScreen(
+                                  topicIds: [realTopicId],
                                   topicTitle: topicName,
                                   subjectTitle: _selectedSubject,
                                   questions: questions,
@@ -616,6 +617,44 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
+                                  if (dbTopics.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => TestScreen(
+                              topicIds: dbTopics.map<int>((t) => t['id'] as int).toList(),
+                              topicTitle: 'Усі теми',
+                              subjectTitle: _selectedSubject,
+                              questions: const [],
+                              startImmediately: true,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                      label: const Text(
+                        'START',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

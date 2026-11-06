@@ -22,6 +22,8 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "eduway")
 
 app = FastAPI()
 # allow requests from the Flutter app (needed for Flutter web)
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

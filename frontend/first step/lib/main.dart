@@ -153,9 +153,9 @@ class _EduWayState extends State<EduWay> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text('Це ім\'я вже зайняте')),
                                   );
-                                } else {
+                                }  else {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Помилка реєстрації')),
+                                    SnackBar(content: Text('Помилка реєстрації, код: $statusCode')),
                                   );
                                 }
                               }

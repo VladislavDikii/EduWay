@@ -1,30 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'services/api_service.dart';
+import 'services/auth_service.dart';
 
 class TestScreen extends StatefulWidget {
-  final String topicTitle; //зберігається назва обраної теми
-  final List dynamicQuestions; //передаєм список запитань
+  final List<int> topicIds; // one id = one topic, several ids = whole subject
+  final String topicTitle;
+  final List dynamicQuestions; // questions with answers, for the overview mode
   final String subjectTitle;
+  final bool startImmediately; // true = draw the ticket right away, no overview
 
   const TestScreen({
     super.key,
+    required this.topicIds,
     required List questions,
-    required this.topicTitle, //змінна є обов'язкова при виклику екрану
+    required this.topicTitle,
     required this.subjectTitle,
+    this.startImmediately = false,
   }) : dynamicQuestions = questions;
 
   @override
-  State<TestScreen> createState() => _TestScreenState(); //метод який відповідає за логіку інтерфейсу
+  State<TestScreen> createState() => _TestScreenState();
 }
 
 class _TestScreenState extends State<TestScreen> {
-  // false = режим перегляду запитань (за замовчуванням)
-  // true = режим проходження тесту
-  bool _isTestingMode = false;
+  static const int _singleTopicSize = 5; // questions when one topic is chosen
+  static const int _allQuestions = 50; // backend maximum, takes every question of a topic
 
-  int _item = 0; //кількість питань
-  int? _selected; //зберігає індекс відповіді
-  int _score = 0; //кількість правильних
+  bool _isTestingMode = false;
+  bool _loading = false;
+
+  List<Map<String, dynamic>> _runQuestions = []; // all questions of the run
+  final List<Map<String, dynamic>> _answers = [];
+  final List<int> _ticketIds = [];
+  final Set<int> _submittedIds = {};
+  int _score = 0;
+  int _total = 0;
+
+  int _item = 0;
+  int? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startImmediately) {
+      _loading = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startTicket());
+    }
+  }
 
   int _safeParseInt(dynamic value) {
     if (value is int) return value;
@@ -50,46 +73,125 @@ class _TestScreenState extends State<TestScreen> {
     return text?.toString() ?? 'Питання без тексту';
   }
 
-  void _nextQuestion() {
-    if (_item < widget.dynamicQuestions.length) {
-      final rawQ = widget.dynamicQuestions[_item];
-      if (rawQ is Map) {
-        final int correctIdx = _getCorrectIndex(rawQ);
-        if (_selected == correctIdx) {
-          _score++;
-        }
-      }
+  // START: draw one ticket per topic and join all questions into one run
+  Future<void> _startTicket() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    final user = AuthService.username;
+    if (user == null) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Спочатку увійди в акаунт')));
+      if (widget.startImmediately) navigator.pop();
+      return;
     }
 
-    if (_item < widget.dynamicQuestions.length - 1) {
+    setState(() => _loading = true);
+    try {
+           final count = widget.topicIds.length == 1 ? _singleTopicSize : _allQuestions;
+      final ids = <int>[];
+      final all = <Map<String, dynamic>>[];
+
+      for (final topicId in widget.topicIds) {
+        final data = await ApiService.drawTicket(user, topicId, count);
+        final ticketId = data['ticket_id'] as int;
+        ids.add(ticketId);
+              all.shuffle(); // mix questions of different topics
+        for (final q in data['questions'] as List) {
+          final m = Map<String, dynamic>.from(q as Map);
+          m['ticket_id'] = ticketId; // remember which ticket the question is from
+          all.add(m);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _ticketIds
+          ..clear()
+          ..addAll(ids);
+        _submittedIds.clear();
+        _runQuestions = all;
+        _answers.clear();
+        _score = 0;
+        _total = 0;
+        _item = 0;
+        _selected = null;
+        _isTestingMode = true;
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('Draw ticket error: $e');
+      if (!mounted) return;
+      setState(() => _loading = false);
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Не вдалося створити квиток')));
+      if (widget.startImmediately) navigator.pop();
+    }
+  }
+
+  // Next / Finish: save the answer, move on or submit all tickets
+  Future<void> _nextQuestion() async {
+    final q = _runQuestions[_item];
+    _answers.add({
+      'ticket_id': q['ticket_id'],
+      'question_id': q['id'],
+      'chosen_index': _selected,
+    });
+
+    if (_item < _runQuestions.length - 1) {
       setState(() {
         _item++;
         _selected = null;
       });
-    } else {
-      _showResultDialog();
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      for (final ticketId in _ticketIds) {
+        if (_submittedIds.contains(ticketId)) continue; // already sent before
+        final mine = _answers
+            .where((a) => a['ticket_id'] == ticketId)
+            .map<Map<String, dynamic>>((a) => {
+                  'question_id': a['question_id'],
+                  'chosen_index': a['chosen_index'],
+                })
+            .toList();
+        final result = await ApiService.submitTicket(
+            ticketId, AuthService.username ?? '', mine);
+        _submittedIds.add(ticketId);
+        _score += result['score'] as int;
+        _total += result['total'] as int;
+      }
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showResultDialog(_score, _total);
+    } catch (e) {
+      debugPrint('Submit error: $e');
+      if (!mounted) return;
+      // remove the last answer so the user can press the button again
+      _answers.removeLast();
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Не вдалося зберегти результат, спробуй ще раз')));
     }
   }
 
-//відображення спливаючого вікна результатів
-  void _showResultDialog() {
-    //віджет що спливає поверх інших
+  void _showResultDialog(int score, int total) {
     showDialog(
       context: context,
-      barrierDismissible: false, //заборона закривати вікно поза ним( користувач повинен натиснути кнопку «На головну»)
-      builder: (context) => AlertDialog( //створюється  спливаюче вікно
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF15131F),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          'Тест завершено! 🎉',
+          'Тест завершено!',
           style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 24),
         ),
-        //текст усередині вікна
         content: Text(
-          'Твій результат: $_score з ${widget.dynamicQuestions.length} правильних відповідей!',
+          'Твій результат: $score з $total правильних відповідей!',
           style: const TextStyle(color: Colors.white70, fontSize: 16),
         ),
-        //Список кнопок у нижній частині діалогового вікна
         actions: [
           ElevatedButton(
             onPressed: () {
@@ -106,7 +208,7 @@ class _TestScreenState extends State<TestScreen> {
     );
   }
 
-  Future<bool> _onWillPop() async {
+  Future<bool> _confirmExit() async {
     if (!_isTestingMode) return true;
 
     final shouldLeave = await showDialog<bool>(
@@ -114,9 +216,9 @@ class _TestScreenState extends State<TestScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF15131F),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Перервати тест?', style: TextStyle(color: Colors.white)),
+        title: const Text('Вийти з квитка?', style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Ваш поточний прогрес у тесті буде втрачено.',
+          'Ваш поточний прогрес у квитку буде втрачено.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -132,16 +234,25 @@ class _TestScreenState extends State<TestScreen> {
         ],
       ),
     );
-
-    if (shouldLeave == true) {
-      setState(() {
-        _isTestingMode = false;
-        _item = 0;
-        _selected = null;
-        _score = 0;
-      });
-    }
     return shouldLeave ?? false;
+  }
+
+  Future<void> _exitTicket() async {
+    final leave = await _confirmExit();
+    if (!leave || !mounted) return;
+    setState(() {
+      _isTestingMode = false;
+      _ticketIds.clear();
+      _submittedIds.clear();
+      _runQuestions = [];
+      _answers.clear();
+      _item = 0;
+      _selected = null;
+    });
+    // started from the topics page: there is no overview, go back there
+    if (widget.startImmediately && mounted) {
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -150,7 +261,7 @@ class _TestScreenState extends State<TestScreen> {
       canPop: !_isTestingMode,
       onPopInvokedWithResult: (didPop, result) async {
         if (!didPop && _isTestingMode) {
-          await _onWillPop();
+          await _exitTicket();
         }
       },
       child: Scaffold(
@@ -162,10 +273,7 @@ class _TestScreenState extends State<TestScreen> {
             icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
             onPressed: () async {
               if (_isTestingMode) {
-                final shouldLeave = await _onWillPop();
-                if (shouldLeave && context.mounted) {
-                  Navigator.pop(context);
-                }
+                await _exitTicket();
               } else {
                 Navigator.pop(context);
               }
@@ -173,7 +281,6 @@ class _TestScreenState extends State<TestScreen> {
           ),
           title: Row(
             children: [
-              // Тег предмета
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -186,7 +293,6 @@ class _TestScreenState extends State<TestScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              // Тег теми
               Flexible(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -209,7 +315,11 @@ class _TestScreenState extends State<TestScreen> {
             constraints: const BoxConstraints(maxWidth: 1000),
             child: Padding(
               padding: const EdgeInsets.all(20.0),
-              child: _isTestingMode ? _buildTestMode() : _buildOverviewMode(),
+              child: _isTestingMode
+                  ? _buildTestMode()
+                  : (widget.startImmediately
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildOverviewMode()),
             ),
           ),
         ),
@@ -300,13 +410,7 @@ class _TestScreenState extends State<TestScreen> {
               width: 180,
               height: 50,
               child: ElevatedButton(
-                onPressed: widget.dynamicQuestions.isNotEmpty
-                    ? () {
-                        setState(() {
-                          _isTestingMode = true;
-                        });
-                      }
-                    : null,
+                onPressed: _loading ? null : _startTicket,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   shape: RoundedRectangleBorder(
@@ -315,15 +419,21 @@ class _TestScreenState extends State<TestScreen> {
                   ),
                   elevation: 8,
                 ),
-                child: const Text(
-                  'START',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
-                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text(
+                        'START',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -333,22 +443,28 @@ class _TestScreenState extends State<TestScreen> {
   }
 
   Widget _buildTestMode() {
-    if (widget.dynamicQuestions.isEmpty) {
+    if (_runQuestions.isEmpty) {
       return const Center(
         child: Text('Питань немає', style: TextStyle(color: Colors.white)),
       );
     }
 
-    final rawQ = widget.dynamicQuestions[_item];
-    final Map currentQuestion = (rawQ is Map) ? rawQ : {};
-    
-    final double progress = (_item + 1) / widget.dynamicQuestions.length;
+    final Map currentQuestion = _runQuestions[_item];
+
+    final int total = _runQuestions.length;
+    final double progress = (_item + 1) / total;
     final String questionText = _getQuestionText(currentQuestion);
     final List<String> options = _getOptions(currentQuestion);
+    final bool isLast = _item == total - 1;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          'Питання ${_item + 1} з $total',
+          style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: LinearProgressIndicator(
@@ -415,25 +531,52 @@ class _TestScreenState extends State<TestScreen> {
             },
           ),
         ),
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton(
-            onPressed: _selected != null ? _nextQuestion : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              disabledBackgroundColor: Colors.white.withValues(alpha: 0.1),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Text(
-              _item == widget.dynamicQuestions.length - 1 ? 'Завершити тест' : 'Наступне питання',
-              style: TextStyle(
-                color: _selected != null ? Colors.white : Colors.white38,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+        Row(
+          children: [
+            SizedBox(
+              height: 52,
+              child: OutlinedButton(
+                onPressed: _loading ? null : _exitTicket,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.redAccent),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text(
+                  'Вийти',
+                  style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: (_selected != null && !_loading) ? _nextQuestion : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    disabledBackgroundColor: Colors.white.withValues(alpha: 0.1),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : Text(
+                          isLast ? 'Завершити тест' : 'Далі',
+                          style: TextStyle(
+                            color: _selected != null ? Colors.white : Colors.white38,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
