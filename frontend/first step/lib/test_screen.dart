@@ -10,7 +10,7 @@ class TestScreen extends StatefulWidget {
   final String subjectTitle;
   final bool startImmediately; // true = draw the ticket right away, no overview
 
-  const TestScreen({
+const TestScreen({
     super.key,
     required this.topicIds,
     required List questions,
