@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/api_service.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   final String userName;
   final Color surfaceColor;
   final Color textColor;
@@ -22,6 +23,19 @@ class HomePage extends StatelessWidget {
     required this.onSubjectTap,
     required this.onQuoteTap,
   });
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  late Future<List<dynamic>> _subjectsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _subjectsFuture = ApiService.fetchSubjects();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +64,7 @@ class HomePage extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(12.0),
                         decoration: BoxDecoration(
-                          color: primaryBlue.withValues(alpha: 0.3),
+                          color: widget.primaryBlue.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(12.0),
                         ),
                         child: const Icon(Icons.school, color: Colors.blueAccent, size: 40),
@@ -61,7 +75,7 @@ class HomePage extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Раді тебе бачити, $userName!",
+                              "Раді тебе бачити, ${widget.userName}!",
                               style: GoogleFonts.pixelifySans(
                                 textStyle: const TextStyle(
                                   color: Colors.white,
@@ -72,7 +86,7 @@ class HomePage extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'EduWay допоможе тобі підготуватися до екзаменів і впевнено скласти їх. Обирай предмет і починай!',
+                              'EduWay допоможе тобі підготуватися до екзаменів і впевнено скласти їх.',
                               style: GoogleFonts.roboto(color: Colors.white70, fontSize: 13),
                             ),
                           ],
@@ -91,13 +105,17 @@ class HomePage extends StatelessWidget {
                         Text(
                           'Мої предмети',
                           style: GoogleFonts.pixelifySans(
-                            textStyle: TextStyle(color: textColor, fontSize: 22, fontWeight: FontWeight.bold),
+                            textStyle: TextStyle(
+                              color: widget.textColor,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           'Обирай предмет, щоб почати підготовку',
-                          style: GoogleFonts.roboto(color: subtitleColor, fontSize: 12),
+                          style: GoogleFonts.roboto(color: widget.subtitleColor, fontSize: 12),
                         ),
                       ],
                     ),
@@ -106,7 +124,7 @@ class HomePage extends StatelessWidget {
                       icon: const Icon(Icons.add, size: 18, color: Colors.white),
                       label: const Text('Додати предмет', style: TextStyle(color: Colors.white)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryBlue,
+                        backgroundColor: widget.primaryBlue,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
@@ -114,28 +132,54 @@ class HomePage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildSubjectCard(
-                        title: 'Математичний аналіз',
-                        questionsCount: '45 питань',
-                        icon: Icons.calculate_outlined,
-                        iconBgColor: primaryBlue,
-                        onViewTap: () => onSubjectTap('Математичний аналіз'),
+                FutureBuilder<List<dynamic>>(
+                  future: _subjectsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      // ВИПРАВЛЕНО: Замість Center(padding: ...) використано Padding(child: Center(...))
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+
+                    final subjects = snapshot.data ?? [];
+
+                    if (subjects.isEmpty) {
+                      return const Text('Предмети відсутні', style: TextStyle(color: Colors.white54));
+                    }
+
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.4,
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildSubjectCard(
-                        title: 'Історія України',
-                        questionsCount: '32 питання',
-                        icon: Icons.account_balance_outlined,
-                        iconBgColor: const Color(0xFF7C3AED),
-                        onViewTap: () => onSubjectTap('Історія України'),
-                      ),
-                    ),
-                  ],
+                      itemCount: subjects.length,
+                      itemBuilder: (context, index) {
+                        final subject = subjects[index];
+                        final String title = subject['name'] ?? 'Предмет';
+                        final int questionsCount = subject['questions'] ?? 0;
+
+                        final Color iconBg = index % 2 == 0 
+                            ? widget.primaryBlue 
+                            : const Color(0xFF7C3AED);
+
+                        return _buildSubjectCard(
+                          title: title,
+                          questionsCount: '$questionsCount питань',
+                          icon: index % 2 == 0 
+                              ? Icons.calculate_outlined 
+                              : Icons.account_balance_outlined,
+                          iconBgColor: iconBg,
+                          onViewTap: () => widget.onSubjectTap(title),
+                        );
+                      },
+                    );
+                  },
                 ),
               ],
             ),
@@ -148,9 +192,9 @@ class HomePage extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(16.0),
                   decoration: BoxDecoration(
-                    color: surfaceColor.withValues(alpha: 0.85),
+                    color: widget.surfaceColor.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(16.0),
-                    border: Border.all(color: textColor.withValues(alpha: 0.05)),
+                    border: Border.all(color: widget.textColor.withValues(alpha: 0.05)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,17 +206,17 @@ class HomePage extends StatelessWidget {
                             children: [
                               const Icon(Icons.access_time_rounded, color: Colors.blueAccent, size: 18),
                               const SizedBox(width: 8),
-                              Text('Останній квиток', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 13)),
+                              Text('Останній квиток', style: TextStyle(color: widget.textColor, fontWeight: FontWeight.bold, fontSize: 13)),
                             ],
                           ),
-                          Icon(Icons.chevron_right, color: subtitleColor, size: 18),
+                          Icon(Icons.chevron_right, color: widget.subtitleColor, size: 18),
                         ],
                       ),
                       const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('22 жовт. 2026 • 14:32', style: TextStyle(color: subtitleColor, fontSize: 11)),
+                          Text('22 жовт. 2026 • 14:32', style: TextStyle(color: widget.subtitleColor, fontSize: 11)),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
@@ -188,23 +232,23 @@ class HomePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 InkWell(
-                  onTap: onQuoteTap,
+                  onTap: widget.onQuoteTap,
                   borderRadius: BorderRadius.circular(16.0),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16.0),
                     decoration: BoxDecoration(
-                      color: surfaceColor.withValues(alpha: 0.85),
+                      color: widget.surfaceColor.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(16.0),
-                      border: Border.all(color: textColor.withValues(alpha: 0.05)),
+                      border: Border.all(color: widget.textColor.withValues(alpha: 0.05)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('“', style: TextStyle(color: Colors.blue, fontSize: 36, height: 0.8, fontFamily: 'serif')),
-                        Text(currentQuote['text']!, style: TextStyle(color: textColor, fontSize: 12, fontStyle: FontStyle.italic)),
+                        Text(widget.currentQuote['text']!, style: TextStyle(color: widget.textColor, fontSize: 12, fontStyle: FontStyle.italic)),
                         const SizedBox(height: 8),
-                        Text(currentQuote['author']!, style: TextStyle(color: subtitleColor, fontSize: 11)),
+                        Text(widget.currentQuote['author']!, style: TextStyle(color: widget.subtitleColor, fontSize: 11)),
                       ],
                     ),
                   ),
@@ -227,9 +271,9 @@ class HomePage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: surfaceColor.withValues(alpha: 0.85),
+        color: widget.surfaceColor.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(16.0),
-        border: Border.all(color: textColor.withValues(alpha: 0.05)),
+        border: Border.all(color: widget.textColor.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,15 +290,15 @@ class HomePage extends StatelessWidget {
                 child: Icon(icon, color: Colors.white, size: 20),
               ),
               IconButton(
-                icon: Icon(Icons.more_vert, color: subtitleColor, size: 18),
+                icon: Icon(Icons.more_vert, color: widget.subtitleColor, size: 18),
                 onPressed: () {},
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(title, style: GoogleFonts.roboto(color: textColor, fontWeight: FontWeight.bold, fontSize: 15)),
+          Text(title, style: GoogleFonts.roboto(color: widget.textColor, fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(height: 2),
-          Text(questionsCount, style: GoogleFonts.roboto(color: subtitleColor, fontSize: 12)),
+          Text(questionsCount, style: GoogleFonts.roboto(color: widget.subtitleColor, fontSize: 12)),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -264,7 +308,7 @@ class HomePage extends StatelessWidget {
                   icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
                   label: const Text('Почати тест', style: TextStyle(fontSize: 11, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryBlue,
+                    backgroundColor: widget.primaryBlue,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
@@ -274,11 +318,11 @@ class HomePage extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: onViewTap,
-                  icon: Icon(Icons.article_outlined, size: 16, color: textColor),
-                  label: Text('Переглянути', style: TextStyle(fontSize: 11, color: textColor)),
+                  icon: Icon(Icons.article_outlined, size: 16, color: widget.textColor),
+                  label: Text('Переглянути', style: TextStyle(fontSize: 11, color: widget.textColor)),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    side: BorderSide(color: subtitleColor.withValues(alpha: 0.3)),
+                    side: BorderSide(color: widget.subtitleColor.withValues(alpha: 0.3)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                 ),

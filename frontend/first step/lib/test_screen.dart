@@ -4,16 +4,16 @@ import 'services/api_service.dart';
 import 'services/auth_service.dart';
 
 class TestScreen extends StatefulWidget {
-  final List<int> topicIds; // one id = one topic, several ids = whole subject
+  final List<int> topicIds; 
   final String topicTitle;
-  final List dynamicQuestions; // questions with answers, for the overview mode
+  final List<dynamic> dynamicQuestions;
   final String subjectTitle;
-  final bool startImmediately; // true = draw the ticket right away, no overview
+  final bool startImmediately; 
 
-const TestScreen({
+  const TestScreen({
     super.key,
     required this.topicIds,
-    required List questions,
+    required List<dynamic> questions,
     required this.topicTitle,
     required this.subjectTitle,
     this.startImmediately = false,
@@ -24,13 +24,13 @@ const TestScreen({
 }
 
 class _TestScreenState extends State<TestScreen> {
-  static const int _singleTopicSize = 5; // questions when one topic is chosen
-  static const int _allQuestions = 50; // backend maximum, takes every question of a topic
+  static const int _singleTopicSize = 5; 
+  static const int _allQuestions = 50; 
 
   bool _isTestingMode = false;
   bool _loading = false;
 
-  List<Map<String, dynamic>> _runQuestions = []; // all questions of the run
+  List<Map<String, dynamic>> _runQuestions = [];
   final List<Map<String, dynamic>> _answers = [];
   final List<int> _ticketIds = [];
   final Set<int> _submittedIds = {};
@@ -73,7 +73,6 @@ class _TestScreenState extends State<TestScreen> {
     return text?.toString() ?? 'Питання без тексту';
   }
 
-  // START: draw one ticket per topic and join all questions into one run
   Future<void> _startTicket() async {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
@@ -88,7 +87,7 @@ class _TestScreenState extends State<TestScreen> {
 
     setState(() => _loading = true);
     try {
-           final count = widget.topicIds.length == 1 ? _singleTopicSize : _allQuestions;
+      final count = widget.topicIds.length == 1 ? _singleTopicSize : _allQuestions;
       final ids = <int>[];
       final all = <Map<String, dynamic>>[];
 
@@ -96,13 +95,15 @@ class _TestScreenState extends State<TestScreen> {
         final data = await ApiService.drawTicket(user, topicId, count);
         final ticketId = data['ticket_id'] as int;
         ids.add(ticketId);
-              all.shuffle(); // mix questions of different topics
+
         for (final q in data['questions'] as List) {
           final m = Map<String, dynamic>.from(q as Map);
-          m['ticket_id'] = ticketId; // remember which ticket the question is from
+          m['ticket_id'] = ticketId; 
           all.add(m);
         }
       }
+
+      all.shuffle(); 
 
       if (!mounted) return;
       setState(() {
@@ -129,48 +130,58 @@ class _TestScreenState extends State<TestScreen> {
     }
   }
 
-  // Next / Finish: save the answer, move on or submit all tickets
   Future<void> _nextQuestion() async {
     final q = _runQuestions[_item];
-    _answers.add({
+    
+    // Створюємо карту поточної відповіді
+    final currentAnswer = {
       'ticket_id': q['ticket_id'],
       'question_id': q['id'],
       'chosen_index': _selected,
-    });
+    };
 
     if (_item < _runQuestions.length - 1) {
       setState(() {
+        _answers.add(currentAnswer); // Додаємо лише якщо переходимо далі
         _item++;
         _selected = null;
       });
       return;
     }
 
+    // Якщо це останнє питання — проводимо фінальну відправку
     setState(() => _loading = true);
     try {
+      // Створюємо повний список відповідей (включаючи поточну останню)
+      final allAnswers = List<Map<String, dynamic>>.from(_answers)..add(currentAnswer);
+
       for (final ticketId in _ticketIds) {
-        if (_submittedIds.contains(ticketId)) continue; // already sent before
-        final mine = _answers
+        if (_submittedIds.contains(ticketId)) continue; 
+        
+        final mine = allAnswers
             .where((a) => a['ticket_id'] == ticketId)
             .map<Map<String, dynamic>>((a) => {
                   'question_id': a['question_id'],
                   'chosen_index': a['chosen_index'],
                 })
             .toList();
+
         final result = await ApiService.submitTicket(
             ticketId, AuthService.username ?? '', mine);
         _submittedIds.add(ticketId);
         _score += result['score'] as int;
         _total += result['total'] as int;
       }
+      
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _answers.add(currentAnswer); // Додаємо у глобальний стан лише при успіху
+        _loading = false;
+      });
       _showResultDialog(_score, _total);
     } catch (e) {
       debugPrint('Submit error: $e');
       if (!mounted) return;
-      // remove the last answer so the user can press the button again
-      _answers.removeLast();
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Не вдалося зберегти результат, спробуй ще раз')));
@@ -249,7 +260,6 @@ class _TestScreenState extends State<TestScreen> {
       _item = 0;
       _selected = null;
     });
-    // started from the topics page: there is no overview, go back there
     if (widget.startImmediately && mounted) {
       Navigator.pop(context);
     }
@@ -307,24 +317,24 @@ class _TestScreenState extends State<TestScreen> {
                   ),
                 ),
               ),
-            ],
+],
+            ),
           ),
-        ),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1000),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: _isTestingMode
-                  ? _buildTestMode()
-                  : (widget.startImmediately
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buildOverviewMode()),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: _isTestingMode
+                    ? _buildTestMode()
+                    : (widget.startImmediately
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildOverviewMode()),
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );   
   }
 
   Widget _buildOverviewMode() {
@@ -567,18 +577,17 @@ class _TestScreenState extends State<TestScreen> {
                         )
                       : Text(
                           isLast ? 'Завершити тест' : 'Далі',
-                          style: TextStyle(
-                            color: _selected != null ? Colors.white : Colors.white38,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                          style: TextStyle(color: _selected != null ? Colors.white : Colors.white38,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                           ),
-                        ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
+                          ),
+                          ),
+                          ),
+                          ),
+                          ],
+                          ),
+                          ],
+                          );
+                          }
+                          }
