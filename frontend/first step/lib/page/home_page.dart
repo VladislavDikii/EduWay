@@ -1,6 +1,10 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import '../ticket_history_screen.dart';
 
 class HomePage extends StatefulWidget {
   final String userName;
@@ -30,11 +34,32 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late Future<List<dynamic>> _subjectsFuture;
+  late Future<List<dynamic>> _lastTicketFuture;
 
   @override
   void initState() {
     super.initState();
     _subjectsFuture = ApiService.fetchSubjects();
+    _loadLastTicket();
+  }
+
+  void _loadLastTicket() {
+    final user = widget.userName.isNotEmpty
+        ? widget.userName
+        : (AuthService.username ?? '');
+    _lastTicketFuture = ApiService.fetchTicketsHistory(user, limit: 1);
+  }
+
+  String _formatDate(String? iso) {
+    if (iso == null) return 'Невідомо';
+    final dt = DateTime.tryParse(iso)?.toLocal();
+    if (dt == null) return iso;
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final y = dt.year;
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$d.$m.$y • $hh:$mm';
   }
 
   @override
@@ -136,7 +161,6 @@ class _HomePageState extends State<HomePage> {
                   future: _subjectsFuture,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      // ВИПРАВЛЕНО: Замість Center(padding: ...) використано Padding(child: Center(...))
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
                         child: Center(child: CircularProgressIndicator()),
@@ -189,45 +213,144 @@ class _HomePageState extends State<HomePage> {
             flex: 1,
             child: Column(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16.0),
-                  decoration: BoxDecoration(
-                    color: widget.surfaceColor.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(16.0),
-                    border: Border.all(color: widget.textColor.withValues(alpha: 0.05)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.access_time_rounded, color: Colors.blueAccent, size: 18),
-                              const SizedBox(width: 8),
-                              Text('Останній квиток', style: TextStyle(color: widget.textColor, fontWeight: FontWeight.bold, fontSize: 13)),
-                            ],
-                          ),
-                          Icon(Icons.chevron_right, color: widget.subtitleColor, size: 18),
-                        ],
+                InkWell(
+                  borderRadius: BorderRadius.circular(16.0),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TicketHistoryScreen(
+                          username: widget.userName,
+                          isDark: widget.textColor.computeLuminance() > 0.5,
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('22 жовт. 2026 • 14:32', style: TextStyle(color: widget.subtitleColor, fontSize: 11)),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF6D28D9).withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(6),
+                    );
+                    if (mounted) {
+                      setState(() {
+                        _loadLastTicket();
+                      });
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      color: widget.surfaceColor.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(16.0),
+                      border: Border.all(
+                        color: widget.textColor.withValues(alpha: 0.05),
+                      ),
+                    ),
+                    child: FutureBuilder<List<dynamic>>(
+                      future: _lastTicketFuture,
+                      builder: (context, snapshot) {
+                        final list = snapshot.data ?? [];
+                        final lastTicket = list.isNotEmpty
+                            ? Map<String, dynamic>.from(list.first as Map)
+                            : null;
+
+                        final String topicTitle = lastTicket != null
+                            ? (lastTicket['topic']?.toString() ?? 'Тест')
+                            : 'Немає пройдених квитків';
+
+                        final bool isFinished =
+                            lastTicket != null && lastTicket['finished_at'] != null;
+
+                        final String dateText = lastTicket != null
+                            ? _formatDate(
+                                (lastTicket['finished_at'] ?? lastTicket['created_at'])
+                                    ?.toString(),
+                              )
+                            : 'Натисніть, щоб відкрити історію';
+
+                        final String badgeText = lastTicket == null
+                            ? 'Історія'
+                            : (isFinished
+                                ? '${lastTicket['score']}/${lastTicket['total']}'
+                                : 'У процесі');
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.access_time_rounded,
+                                      color: Colors.blueAccent,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Останній квиток',
+                                      style: TextStyle(
+                                        color: widget.textColor,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Icon(
+                                  Icons.chevron_right,
+                                  color: widget.subtitleColor,
+                                  size: 18,
+                                ),
+                              ],
                             ),
-                            child: const Text('Завершено', style: TextStyle(color: Color(0xFFA78BFA), fontSize: 10, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                    ],
+                            const SizedBox(height: 8),
+                            Text(
+                              topicTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: widget.textColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    dateText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: widget.subtitleColor,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF6D28D9)
+                                        .withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    badgeText,
+                                    style: const TextStyle(
+                                      color: Color(0xFFA78BFA),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
