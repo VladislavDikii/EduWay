@@ -1,0 +1,4 @@
+ecr_repositories = [
+  "EduWay2026backend",
+  "EduWay2026frontend"
+]
