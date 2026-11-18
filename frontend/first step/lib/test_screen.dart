@@ -165,94 +165,111 @@ class _TestScreenState extends State<TestScreen> {
   }
 
   Future<void> _nextQuestion() async {
-    final q = _runQuestions[_item];
-    
-    // Створюємо карту поточної відповіді
-    final currentAnswer = {
-      'ticket_id': q['ticket_id'],
-      'question_id': q['id'],
-      'chosen_index': _selected,
-    };
-    
-    if (_item < _runQuestions.length - 1) {
-      setState(() {
-        _answers.add(currentAnswer); // Додаємо лише якщо переходимо далі
-        _item++;
-        _selected = null;
-      });
-      return;
-    }
-
-    // Якщо це останнє питання — проводимо фінальну відправку
-    setState(() => _loading = true);
-    try {
-      // Створюємо повний список відповідей (включаючи поточну останню)
-      final allAnswers = List<Map<String, dynamic>>.from(_answers)..add(currentAnswer);
-
-      for (final ticketId in _ticketIds) {
-        if (_submittedIds.contains(ticketId)) continue; 
-        
-        final mine = allAnswers
-            .where((a) => a['ticket_id'] == ticketId)
-            .map<Map<String, dynamic>>((a) => {
-                  'question_id': a['question_id'],
-                  'chosen_index': a['chosen_index'],
-                })
-            .toList();
-
-        final result = await ApiService.submitTicket(
-            ticketId, AuthService.username ?? '', mine);
-        _submittedIds.add(ticketId);
-        _score += result['score'] as int;
-        _total += result['total'] as int;
-      }
-      _stopTimer(); // Зупинка таймера при завершенні
-      
-      if (!mounted) return;
-      setState(() {
-        _answers.add(currentAnswer); // Додаємо у глобальний стан лише при успіху
-        _loading = false;
-      });
-      _showResultDialog(_score, _total);
-    } catch (e) {
-      debugPrint('Submit error: $e');
-      if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Не вдалося зберегти результат, спробуй ще раз')));
-    }
+  final q = _runQuestions[_item];
+  
+  // 1. Створюємо карту поточної відповіді
+  final currentAnswer = {
+    'ticket_id': q['ticket_id'],
+    'question_id': q['id'],
+    'chosen_index': _selected,
+  };
+  
+  // 2. Якщо це ще не останнє питання — просто йдемо далі
+  if (_item < _runQuestions.length - 1) {
+    setState(() {
+      _answers.add(currentAnswer);
+      _item++;
+      _selected = null;
+    });
+    return;
   }
 
-  void _showResultDialog(int score, int total) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF15131F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Тест завершено!',
-          style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 24),
-        ),
-        content: Text(
-          'Твій результат: $score з $total правильних відповідей!',
-          style: const TextStyle(color: Colors.white70, fontSize: 16),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
+  // 3. Якщо це останнє питання — фінальна відправка на бекенд
+  setState(() => _loading = true);
+  try {
+    final allAnswers = List>.from(_answers)..add(currentAnswer);
+
+    for (final ticketId in _ticketIds) {
+      if (_submittedIds.contains(ticketId)) continue; 
+      
+      final mine = allAnswers
+          .where((a) => a['ticket_id'] == ticketId)
+          .map>((a) => {
+                'question_id': a['question_id'],
+                'chosen_index': a['chosen_index'],
+              })
+          .toList();
+      final result = await ApiService.submitTicket(
+          ticketId, AuthService.username ?? '', mine,
+          timeSpent: _secondsElapsed);
+      _submittedIds.add(ticketId);
+      _score += result['score'] as int;
+      _total += result['total'] as int;
+    }
+    _stopTimer();
+    
+    if (!mounted) return;
+    setState(() {
+      _answers.add(currentAnswer);
+      _loading = false;
+    });
+    _showResultDialog(_score, _total);
+  } catch (e) {
+    debugPrint('Submit error: $e');
+    if (!mounted) return;
+    setState(() => _loading = false);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Не вдалося зберегти результат, спробуй ще раз')));
+  }
+  }
+
+
+
+void _showResultDialog(int score, int total) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      backgroundColor: const Color(0xFF15131F),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text(
+        'Тест завершено!',
+        style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 24),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Твій результат: $score з $total правильних відповідей!',
+            style: const TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Витрачений час: $_formattedTime',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
             ),
-            child: const Text('На головну', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
-    );
-  }
+      actions: [
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+            Navigator.pop(context);
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF2563EB),
+          ),
+          child: const Text('На головну', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    ),
+  );
+}
 
   Future<bool> _confirmExit() async {
     if (!_isTestingMode) return true;
@@ -334,6 +351,36 @@ class _TestScreenState extends State<TestScreen> {
                   border: Border.all(color: Colors.white70),
                   borderRadius: BorderRadius.circular(8),
                 ),
+actions: [
+  if (_isTestingMode)
+    Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.timer_outlined, color: Colors.white70, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                _formattedTime,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+],
                 child: Text(
                   widget.subjectTitle,
                   style: const TextStyle(color: Colors.white, fontSize: 13),
