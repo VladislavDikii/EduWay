@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
+import 'dart:async';
 
 class TestScreen extends StatefulWidget {
   final List<int> topicIds; 
@@ -40,6 +41,32 @@ class _TestScreenState extends State<TestScreen> {
   int _item = 0;
   int? _selected;
 
+  Timer? _timer;
+  int _secondsElapsed = 0;
+
+  void _startTimer() {
+    _timer?.cancel();
+    _secondsElapsed = 0;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _secondsElapsed++;
+        });
+      }
+    });
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  String get _formattedTime {
+    final minutes = (_secondsElapsed ~/ 60).toString().padLeft(2, '0');
+    final seconds = (_secondsElapsed % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +74,12 @@ class _TestScreenState extends State<TestScreen> {
       _loading = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _startTicket());
     }
+  }
+
+  @override
+  void dispose() {
+    _stopTimer(); // Додано зупинку таймера
+    super.dispose();
   }
 
   int _safeParseInt(dynamic value) {
@@ -120,6 +153,7 @@ class _TestScreenState extends State<TestScreen> {
         _isTestingMode = true;
         _loading = false;
       });
+    _startTimer(); // Запуск таймера після старту квитка
     } catch (e) {
       debugPrint('Draw ticket error: $e');
       if (!mounted) return;
@@ -139,7 +173,7 @@ class _TestScreenState extends State<TestScreen> {
       'question_id': q['id'],
       'chosen_index': _selected,
     };
-
+    
     if (_item < _runQuestions.length - 1) {
       setState(() {
         _answers.add(currentAnswer); // Додаємо лише якщо переходимо далі
@@ -172,6 +206,7 @@ class _TestScreenState extends State<TestScreen> {
         _score += result['score'] as int;
         _total += result['total'] as int;
       }
+      _stopTimer(); // Зупинка таймера при завершенні
       
       if (!mounted) return;
       setState(() {
@@ -251,7 +286,9 @@ class _TestScreenState extends State<TestScreen> {
   Future<void> _exitTicket() async {
     final leave = await _confirmExit();
     if (!leave || !mounted) return;
+    _stopTimer(); // Зупинка таймера при виході
     setState(() {
+      
       _isTestingMode = false;
       _ticketIds.clear();
       _submittedIds.clear();
