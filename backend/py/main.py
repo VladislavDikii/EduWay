@@ -12,8 +12,6 @@ from pydantic import BaseModel, Field
 
 import tickets
 
-# connection settings come from environment variables
-# (defaults are only for local development)
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "eduway")
@@ -45,6 +43,7 @@ def get_db():
 
 def init_db():
     # the database container may start slower than the backend, so retry
+    last_error = None
     for attempt in range(10):
         try:
             with get_db() as conn:
@@ -57,11 +56,11 @@ def init_db():
                     )"""
                 )
             return
-        except psycopg.OperationalError:
+        except psycopg.OperationalError as e:
+            last_error = e
+            print("DB attempt %d failed: %s" % (attempt + 1, e), flush=True)
             time.sleep(1)
-    raise RuntimeError("could not connect to the database")
-
-
+    raise RuntimeError("could not connect to the database: %s" % last_error)
 init_db()
 
 
