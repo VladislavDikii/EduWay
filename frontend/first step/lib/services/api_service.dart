@@ -86,11 +86,13 @@ class ApiService {
   }
 
   // 5. Здача квитка (POST /api/tickets/{ticket_id}/submit)
-  static Future<Map<String, dynamic>> submitTicket(
-    int ticketId,
-    String username,
-    List<Map<String, dynamic>> answers,
-  ) async {
+ static Future<Map<String, dynamic>> submitTicket(
+  int ticketId,
+  String username,
+  List<Map<String, dynamic>> answers, {
+  int? timeSpent,
+}) async {
+
     final response = await http
         .post(
           Uri.parse('$baseUrl/api/tickets/$ticketId/submit'),

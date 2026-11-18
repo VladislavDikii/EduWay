@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/api_service.dart';
@@ -187,18 +189,19 @@ class _TestScreenState extends State<TestScreen> {
   // 3. Якщо це останнє питання — фінальна відправка на бекенд
   setState(() => _loading = true);
   try {
-    final allAnswers = List>.from(_answers)..add(currentAnswer);
+    final allAnswers = List<Map<String, dynamic>>.from(_answers)..add(currentAnswer);
 
     for (final ticketId in _ticketIds) {
       if (_submittedIds.contains(ticketId)) continue; 
       
       final mine = allAnswers
           .where((a) => a['ticket_id'] == ticketId)
-          .map>((a) => {
+          .map<Map<String, dynamic>>((a) => {
                 'question_id': a['question_id'],
                 'chosen_index': a['chosen_index'],
               })
           .toList();
+
       final result = await ApiService.submitTicket(
           ticketId, AuthService.username ?? '', mine,
           timeSpent: _secondsElapsed);
@@ -351,36 +354,6 @@ void _showResultDialog(int score, int total) {
                   border: Border.all(color: Colors.white70),
                   borderRadius: BorderRadius.circular(8),
                 ),
-actions: [
-  if (_isTestingMode)
-    Padding(
-      padding: const EdgeInsets.only(right: 16.0),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.timer_outlined, color: Colors.white70, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                _formattedTime,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-],
                 child: Text(
                   widget.subjectTitle,
                   style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -401,9 +374,40 @@ actions: [
                   ),
                 ),
               ),
-],
-            ),
+            ],
           ),
+          actions: [
+            if (_isTestingMode)
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.timer_outlined, color: Colors.white70, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formattedTime,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+
           body: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1000),

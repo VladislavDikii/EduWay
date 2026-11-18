@@ -224,15 +224,17 @@ def list_tickets(username: str, limit: int = Query(default=20, ge=1, le=100)):
     with get_db() as conn:
         user_id = get_user_id(conn, username)
         rows = conn.execute(
-            "SELECT t.id, t.topic_id, tp.name, t.created_at, t.finished_at, "
+            "SELECT t.id, t.topic_id, tp.name, s.name, t.created_at, t.finished_at, "
             "  COUNT(tq.question_id), "
-            "  COUNT(*) FILTER (WHERE tq.chosen_index = q.correct_index) "
+            "  COUNT(*) FILTER (WHERE tq.chosen_index = q.correct_index), "
+            "  EXTRACT(EPOCH FROM (t.finished_at - t.created_at))::int "
             "FROM tickets t "
             "JOIN topics tp ON tp.id = t.topic_id "
+            "JOIN subjects s ON s.id = tp.subject_id "
             "JOIN ticket_questions tq ON tq.ticket_id = t.id "
             "JOIN questions q ON q.id = tq.question_id "
             "WHERE t.user_id = %s "
-            "GROUP BY t.id, tp.name "
+            "GROUP BY t.id, tp.name, s.name "
             "ORDER BY t.created_at DESC LIMIT %s",
             (user_id, limit),
         ).fetchall()
@@ -241,10 +243,12 @@ def list_tickets(username: str, limit: int = Query(default=20, ge=1, le=100)):
             "ticket_id": r[0],
             "topic_id": r[1],
             "topic": r[2],
-            "created_at": r[3].isoformat(),
-            "finished_at": r[4].isoformat() if r[4] else None,
-            "total": r[5],
-            "score": r[6] if r[4] else None,
+            "subject": r[3],
+            "created_at": r[4].isoformat(),
+            "finished_at": r[5].isoformat() if r[5] else None,
+            "total": r[6],
+            "score": r[7] if r[5] else None,
+            "duration_sec": max(r[8], 0) if r[5] and r[8] is not None else None,
         }
         for r in rows
     ]
