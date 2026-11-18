@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 
 import tickets
 
+# connection settings come from environment variables
+# (defaults are only for local development)
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "eduway")
@@ -19,9 +21,8 @@ DB_USER = os.getenv("DB_USER", "eduway")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "eduway")
 
 app = FastAPI()
-# allow requests from the Flutter app (needed for Flutter web)
-from fastapi.middleware.cors import CORSMiddleware
 
+# allow requests from the Flutter app (needed for Flutter web)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,6 +31,7 @@ app.add_middleware(
 )
 app.include_router(tickets.router)
 app.include_router(questions.router)
+
 
 def get_db():
     return psycopg.connect(
@@ -61,6 +63,8 @@ def init_db():
             print("DB attempt %d failed: %s" % (attempt + 1, e), flush=True)
             time.sleep(1)
     raise RuntimeError("could not connect to the database: %s" % last_error)
+
+
 init_db()
 
 
@@ -112,3 +116,10 @@ def login(data: Credentials):
         raise HTTPException(status_code=401, detail="wrong username or password")
 
     return {"message": "ok", "username": username}
+
+
+@app.post("/api/logout")
+def logout():
+    # no tokens or sessions in the MVP, so there is nothing to cancel on the server;
+    # when JWT tokens appear, they will be revoked here
+    return {"message": "logged out"}

@@ -4,8 +4,6 @@ import 'package:http/http.dart' as http;
 
 class AuthService {
   static const String baseUrl = 'http://127.0.0.1:8000';
-
-  // name of the logged in user, sent with ticket requests
   static String? username;
 
   static Future<int> register(String name, String password) async {
@@ -40,9 +38,12 @@ class AuthService {
     }
   }
 
-  static String? getToken() => username;
-
-  static Future<void> logout() async {
-    username = null;
+   static Future<void> logout() async {
+    username = null; // forget the user first, so logout works even if the server is down
+    try {
+      await http.post(Uri.parse('$baseUrl/api/logout'));
+    } catch (e) {
+      debugPrint('Logout error: $e');
+    }
   }
-}
+  }
