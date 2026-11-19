@@ -1,8 +1,12 @@
-# Terraform - AWS Infrastructure
+# Terraform — AWS Infrastructure
 
-## Terraform state bucket
+This directory contains shared AWS infrastructure guidance and Terraform
+modules. Each module is managed independently from its own directory.
 
-Before using the AWS CLI, export your AWS credentials and default region:
+## AWS credentials
+
+Before using the AWS CLI or Terraform, configure credentials for the AWS
+account where you want to create resources:
 
 ```sh
 export AWS_ACCESS_KEY_ID="<your-access-key-id>"
@@ -10,7 +14,11 @@ export AWS_SECRET_ACCESS_KEY="<your-secret-access-key>"
 export AWS_DEFAULT_REGION="eu-central-1"
 ```
 
-Create the S3 bucket in `eu-central-1`:
+## Terraform state bucket
+
+The Terraform modules store remote state in the S3 bucket
+`eduway2026-tfstate-bucket` in `eu-central-1`. Create the bucket before
+initializing a module that uses it:
 
 ```sh
 aws s3api create-bucket \
@@ -20,7 +28,8 @@ aws s3api create-bucket \
   --tagging 'TagSet=[{Key=Project,Value=EduWay2026},{Key=Purpose,Value=TerraformState},{Key=Environment,Value=Shared},{Key=ManagedBy,Value=Terraform}]'
 ```
 
-Apply tags:
+Apply the tags:
+
 ```sh
 aws s3api put-bucket-tagging \
   --bucket eduway2026-tfstate-bucket \
@@ -28,9 +37,12 @@ aws s3api put-bucket-tagging \
   --tagging 'TagSet=[{Key=Project,Value=EduWay2026},{Key=Purpose,Value=TerraformState},{Key=Environment,Value=Shared},{Key=ManagedBy,Value=Terraform}]'
 ```
 
-> **Warning:** Do not delete this bucket until the entire infrastructure has been destroyed. Terraform needs the state stored in the bucket to manage and destroy that infrastructure.
+> **Warning:** Do not delete this bucket until all infrastructure managed with
+> its state has been destroyed. Terraform needs the stored state to manage and
+> destroy that infrastructure.
 
-To delete the bucket after destroying the infrastructure, first remove its objects, then delete the bucket:
+After destroying the infrastructure, delete the bucket by first removing its
+objects and then deleting the bucket:
 
 ```sh
 aws s3 rm s3://eduway2026-tfstate-bucket --recursive --region eu-central-1
@@ -39,4 +51,23 @@ aws s3api delete-bucket \
   --region eu-central-1
 ```
 
-Deleting the objects permanently removes any Terraform state stored in the bucket.
+Deleting the objects permanently removes any Terraform state stored in the
+bucket.
+
+## Terraform modules
+
+Terraform modules are located under [`modules/`](modules/). Initialize and run
+Terraform from the directory of the module you want to use. Each module's
+README contains its configuration and usage instructions.
+
+### ECR repositories
+
+[`modules/ecr/`](modules/ecr/) creates Amazon ECR repositories for EduWay
+container images, including the backend, frontend, and database seeder
+repositories.
+
+See [`modules/ecr/README.md`](modules/ecr/README.md) for prerequisites,
+configuration, provisioning, and instructions for pushing images.
+
+As additional modules are added under `modules/`, add a section here describing
+each module and linking to its README.
