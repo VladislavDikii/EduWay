@@ -7,11 +7,13 @@ import 'services/auth_service.dart';
 import 'dart:async';
 
 class TestScreen extends StatefulWidget {
-  final List<int> topicIds; 
+  final List<int> topicIds;
   final String topicTitle;
   final List<dynamic> dynamicQuestions;
   final String subjectTitle;
-  final bool startImmediately; 
+  final bool startImmediately;
+  
+  final Map<int, int>? topicCounts;
 
   const TestScreen({
     super.key,
@@ -20,6 +22,7 @@ class TestScreen extends StatefulWidget {
     required this.topicTitle,
     required this.subjectTitle,
     this.startImmediately = false,
+    this.topicCounts,
   }) : dynamicQuestions = questions;
 
   @override
@@ -27,8 +30,8 @@ class TestScreen extends StatefulWidget {
 }
 
 class _TestScreenState extends State<TestScreen> {
-  static const int _singleTopicSize = 5; 
-  static const int _allQuestions = 50; 
+  static const int _singleTopicSize = 5;
+  static const int _allQuestions = 50;
 
   bool _isTestingMode = false;
   bool _loading = false;
@@ -80,7 +83,7 @@ class _TestScreenState extends State<TestScreen> {
 
   @override
   void dispose() {
-    _stopTimer(); // Додано зупинку таймера
+    _stopTimer();
     super.dispose();
   }
 
@@ -122,23 +125,24 @@ class _TestScreenState extends State<TestScreen> {
 
     setState(() => _loading = true);
     try {
-      final count = widget.topicIds.length == 1 ? _singleTopicSize : _allQuestions;
       final ids = <int>[];
       final all = <Map<String, dynamic>>[];
 
       for (final topicId in widget.topicIds) {
+        final count = widget.topicCounts?[topicId] ??
+            (widget.topicIds.length == 1 ? _singleTopicSize : _allQuestions);
         final data = await ApiService.drawTicket(user, topicId, count);
         final ticketId = data['ticket_id'] as int;
         ids.add(ticketId);
 
         for (final q in data['questions'] as List) {
           final m = Map<String, dynamic>.from(q as Map);
-          m['ticket_id'] = ticketId; 
+          m['ticket_id'] = ticketId;
           all.add(m);
         }
       }
 
-      all.shuffle(); 
+      all.shuffle();
 
       if (!mounted) return;
       setState(() {
@@ -155,7 +159,7 @@ class _TestScreenState extends State<TestScreen> {
         _isTestingMode = true;
         _loading = false;
       });
-    _startTimer(); // Запуск таймера після старту квитка
+      _startTimer();
     } catch (e) {
       debugPrint('Draw ticket error: $e');
       if (!mounted) return;
@@ -167,112 +171,109 @@ class _TestScreenState extends State<TestScreen> {
   }
 
   Future<void> _nextQuestion() async {
-  final q = _runQuestions[_item];
-  
-  // 1. Створюємо карту поточної відповіді
-  final currentAnswer = {
-    'ticket_id': q['ticket_id'],
-    'question_id': q['id'],
-    'chosen_index': _selected,
-  };
-  
-  // 2. Якщо це ще не останнє питання — просто йдемо далі
-  if (_item < _runQuestions.length - 1) {
-    setState(() {
-      _answers.add(currentAnswer);
-      _item++;
-      _selected = null;
-    });
-    return;
-  }
+    final q = _runQuestions[_item];
 
-  // 3. Якщо це останнє питання — фінальна відправка на бекенд
-  setState(() => _loading = true);
-  try {
-    final allAnswers = List<Map<String, dynamic>>.from(_answers)..add(currentAnswer);
+    final currentAnswer = {
+      'ticket_id': q['ticket_id'],
+      'question_id': q['id'],
+      'chosen_index': _selected,
+    };
 
-    for (final ticketId in _ticketIds) {
-      if (_submittedIds.contains(ticketId)) continue; 
-      
-      final mine = allAnswers
-          .where((a) => a['ticket_id'] == ticketId)
-          .map<Map<String, dynamic>>((a) => {
-                'question_id': a['question_id'],
-                'chosen_index': a['chosen_index'],
-              })
-          .toList();
-
-      final result = await ApiService.submitTicket(
-          ticketId, AuthService.username ?? '', mine,
-          timeSpent: _secondsElapsed);
-      _submittedIds.add(ticketId);
-      _score += result['score'] as int;
-      _total += result['total'] as int;
+    if (_item < _runQuestions.length - 1) {
+      setState(() {
+        _answers.add(currentAnswer);
+        _item++;
+        _selected = null;
+      });
+      return;
     }
-    _stopTimer();
-    
-    if (!mounted) return;
-    setState(() {
-      _answers.add(currentAnswer);
-      _loading = false;
-    });
-    _showResultDialog(_score, _total);
-  } catch (e) {
-    debugPrint('Submit error: $e');
-    if (!mounted) return;
-    setState(() => _loading = false);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Не вдалося зберегти результат, спробуй ще раз')));
+
+    setState(() => _loading = true);
+    try {
+      final allAnswers = List<Map<String, dynamic>>.from(_answers)
+        ..add(currentAnswer);
+
+      for (final ticketId in _ticketIds) {
+        if (_submittedIds.contains(ticketId)) continue;
+
+        final mine = allAnswers
+            .where((a) => a['ticket_id'] == ticketId)
+            .map<Map<String, dynamic>>((a) => {
+                  'question_id': a['question_id'],
+                  'chosen_index': a['chosen_index'],
+                })
+            .toList();
+
+        final result = await ApiService.submitTicket(
+            ticketId, AuthService.username ?? '', mine,
+            timeSpent: _secondsElapsed);
+        _submittedIds.add(ticketId);
+        _score += result['score'] as int;
+        _total += result['total'] as int;
+      }
+      _stopTimer();
+
+      if (!mounted) return;
+      setState(() {
+        _answers.add(currentAnswer);
+        _loading = false;
+      });
+      _showResultDialog(_score, _total);
+    } catch (e) {
+      debugPrint('Submit error: $e');
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Не вдалося зберегти результат, спробуй ще раз')));
+    }
   }
-  }
 
-
-
-void _showResultDialog(int score, int total) {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => AlertDialog(
-      backgroundColor: const Color(0xFF15131F),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text(
-        'Тест завершено!',
-        style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 24),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Твій результат: $score з $total правильних відповідей!',
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Витрачений час: $_formattedTime',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
+  void _showResultDialog(int score, int total) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF15131F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Тест завершено!',
+          style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 24),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Твій результат: $score з $total правильних відповідей!',
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
             ),
+            const SizedBox(height: 8),
+            Text(
+              'Витрачений час: $_formattedTime',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+            ),
+            child: const Text('На головну',
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
-      actions: [
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context);
-            Navigator.pop(context);
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2563EB),
-          ),
-          child: const Text('На головну', style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    ),
-  );
-}
+    );
+  }
 
   Future<bool> _confirmExit() async {
     if (!_isTestingMode) return true;
@@ -282,7 +283,8 @@ void _showResultDialog(int score, int total) {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF15131F),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Вийти з квитка?', style: TextStyle(color: Colors.white)),
+        title: const Text('Вийти з квитка?',
+            style: TextStyle(color: Colors.white)),
         content: const Text(
           'Ваш поточний прогрес у квитку буде втрачено.',
           style: TextStyle(color: Colors.white70),
@@ -290,7 +292,8 @@ void _showResultDialog(int score, int total) {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Продовжити', style: TextStyle(color: Colors.white70)),
+            child: const Text('Продовжити',
+                style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -306,9 +309,8 @@ void _showResultDialog(int score, int total) {
   Future<void> _exitTicket() async {
     final leave = await _confirmExit();
     if (!leave || !mounted) return;
-    _stopTimer(); // Зупинка таймера при виході
+    _stopTimer();
     setState(() {
-      
       _isTestingMode = false;
       _ticketIds.clear();
       _submittedIds.clear();
@@ -337,7 +339,8 @@ void _showResultDialog(int score, int total) {
           backgroundColor: const Color(0xFF15131F),
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: Colors.white),
             onPressed: () async {
               if (_isTestingMode) {
                 await _exitTicket();
@@ -349,7 +352,8 @@ void _showResultDialog(int score, int total) {
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.white70),
                   borderRadius: BorderRadius.circular(8),
@@ -362,7 +366,8 @@ void _showResultDialog(int score, int total) {
               const SizedBox(width: 10),
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.white70),
                     borderRadius: BorderRadius.circular(8),
@@ -370,7 +375,8 @@ void _showResultDialog(int score, int total) {
                   child: Text(
                     widget.topicTitle,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.pixelifySans(color: Colors.white, fontSize: 14),
+                    style: GoogleFonts.pixelifySans(
+                        color: Colors.white, fontSize: 14),
                   ),
                 ),
               ),
@@ -382,7 +388,8 @@ void _showResultDialog(int score, int total) {
                 padding: const EdgeInsets.only(right: 16.0),
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -390,7 +397,8 @@ void _showResultDialog(int score, int total) {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.timer_outlined, color: Colors.white70, size: 16),
+                        const Icon(Icons.timer_outlined,
+                            color: Colors.white70, size: 16),
                         const SizedBox(width: 4),
                         Text(
                           _formattedTime,
@@ -407,22 +415,21 @@ void _showResultDialog(int score, int total) {
               ),
           ],
         ),
-
-          body: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1000),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: _isTestingMode
-                    ? _buildTestMode()
-                    : (widget.startImmediately
-                        ? const Center(child: CircularProgressIndicator())
-                        : _buildOverviewMode()),
-              ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: _isTestingMode
+                  ? _buildTestMode()
+                  : (widget.startImmediately
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildOverviewMode()),
             ),
           ),
         ),
-      );   
+      ),
+    );
   }
 
   Widget _buildOverviewMode() {
@@ -457,8 +464,10 @@ void _showResultDialog(int score, int total) {
             final List<String> options = _getOptions(q);
             final int rawIdx = _getCorrectIndex(q);
 
-            final int correctIdx = (rawIdx < options.length && rawIdx >= 0) ? rawIdx : 0;
-            final String answerText = options.isNotEmpty ? options[correctIdx] : 'Варіанти відсутні';
+            final int correctIdx =
+                (rawIdx < options.length && rawIdx >= 0) ? rawIdx : 0;
+            final String answerText =
+                options.isNotEmpty ? options[correctIdx] : 'Варіанти відсутні';
 
             return Container(
               padding: const EdgeInsets.all(16.0),
@@ -472,14 +481,20 @@ void _showResultDialog(int score, int total) {
                 children: [
                   Text(
                     'Питання ${qIndex + 1}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     questionText,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold),
                   ),
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -490,7 +505,10 @@ void _showResultDialog(int score, int total) {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Відповідь: $answerText',
-                        style: const TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                            color: Colors.greenAccent,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
@@ -521,7 +539,8 @@ void _showResultDialog(int score, int total) {
                     ? const SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : const Text(
                         'START',
@@ -560,7 +579,8 @@ void _showResultDialog(int score, int total) {
       children: [
         Text(
           'Питання ${_item + 1} з $total',
-          style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+              color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         ClipRRect(
@@ -583,7 +603,8 @@ void _showResultDialog(int score, int total) {
           ),
           child: Text(
             questionText,
-            style: GoogleFonts.roboto(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+            style: GoogleFonts.roboto(
+                color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
           ),
         ),
         const SizedBox(height: 20),
@@ -596,17 +617,24 @@ void _showResultDialog(int score, int total) {
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF2563EB).withValues(alpha: 0.2) : const Color(0xFF15131F),
+                  color: isSelected
+                      ? const Color(0xFF2563EB).withValues(alpha: 0.2)
+                      : const Color(0xFF15131F),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected ? const Color(0xFF2563EB) : Colors.white.withValues(alpha: 0.1),
+                    color: isSelected
+                        ? const Color(0xFF2563EB)
+                        : Colors.white.withValues(alpha: 0.1),
                     width: isSelected ? 2 : 1,
                   ),
                 ),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   leading: CircleAvatar(
-                    backgroundColor: isSelected ? const Color(0xFF2563EB) : Colors.white.withValues(alpha: 0.1),
+                    backgroundColor: isSelected
+                        ? const Color(0xFF2563EB)
+                        : Colors.white.withValues(alpha: 0.1),
                     child: Text(
                       String.fromCharCode(65 + index),
                       style: TextStyle(
@@ -617,7 +645,10 @@ void _showResultDialog(int score, int total) {
                   ),
                   title: Text(
                     options[index],
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500),
                   ),
                   onTap: () {
                     setState(() {
@@ -638,11 +669,15 @@ void _showResultDialog(int score, int total) {
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.redAccent),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text(
                   'Вийти',
-                  style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -651,31 +686,37 @@ void _showResultDialog(int score, int total) {
               child: SizedBox(
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: (_selected != null && !_loading) ? _nextQuestion : null,
+                  onPressed:
+                      (_selected != null && !_loading) ? _nextQuestion : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
-                    disabledBackgroundColor: Colors.white.withValues(alpha: 0.1),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    disabledBackgroundColor:
+                        Colors.white.withValues(alpha: 0.1),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: _loading
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : Text(
                           isLast ? 'Завершити тест' : 'Далі',
-                          style: TextStyle(color: _selected != null ? Colors.white : Colors.white38,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          style: TextStyle(
+                            color:
+                                _selected != null ? Colors.white : Colors.white38,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
-                          ),
-                          ),
-                          ),
-                          ),
-                          ],
-                          ),
-                          ],
-                          );
-                          }
-                          }
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}

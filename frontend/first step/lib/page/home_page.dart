@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../test_screen.dart';
 import '../ticket_history_screen.dart';
+import 'ticket_setup_dialog.dart';
 
 class HomePage extends StatefulWidget {
   final String userName;
@@ -60,6 +62,58 @@ class _HomePageState extends State<HomePage> {
     final hh = dt.hour.toString().padLeft(2, '0');
     final mm = dt.minute.toString().padLeft(2, '0');
     return '$d.$m.$y • $hh:$mm';
+  }
+
+  // Налаштування квитка: вибір кількості питань N і запуск тесту по предмету
+  Future<void> _startTest(Map subject) async {
+    final int subjectId = (subject['id'] as num?)?.toInt() ?? 0;
+    final String title = subject['name']?.toString() ?? 'Предмет';
+    final int maxQuestions = (subject['questions'] as num?)?.toInt() ?? 0;
+
+    if (maxQuestions < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('У цьому предметі поки немає питань')),
+      );
+      return;
+    }
+
+    final n = await showTicketSetupDialog(
+      context,
+      subjectName: title,
+      maxQuestions: maxQuestions,
+    );
+    if (n == null || !mounted) return;
+
+    final topics = await ApiService.fetchTopics(subjectId);
+    if (!mounted) return;
+    if (topics.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не вдалося завантажити теми')),
+      );
+      return;
+    }
+
+    final counts = distributeAcrossTopics(topics, n);
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TestScreen(
+          topicIds: counts.keys.toList(),
+          topicCounts: counts,
+          topicTitle: 'Квиток ($n пит.)',
+          subjectTitle: title,
+          questions: const [],
+          startImmediately: true,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      setState(() {
+        _loadLastTicket();
+      });
+    }
   }
 
   @override
@@ -184,21 +238,22 @@ class _HomePageState extends State<HomePage> {
                       ),
                       itemCount: subjects.length,
                       itemBuilder: (context, index) {
-                        final subject = subjects[index];
+                        final subject = subjects[index] as Map;
                         final String title = subject['name'] ?? 'Предмет';
                         final int questionsCount = subject['questions'] ?? 0;
 
-                        final Color iconBg = index % 2 == 0 
-                            ? widget.primaryBlue 
+                        final Color iconBg = index % 2 == 0
+                            ? widget.primaryBlue
                             : const Color(0xFF7C3AED);
 
                         return _buildSubjectCard(
                           title: title,
                           questionsCount: '$questionsCount питань',
-                          icon: index % 2 == 0 
-                              ? Icons.calculate_outlined 
+                          icon: index % 2 == 0
+                              ? Icons.calculate_outlined
                               : Icons.account_balance_outlined,
                           iconBgColor: iconBg,
+                          onStartTap: () => _startTest(subject),
                           onViewTap: () => widget.onSubjectTap(title),
                         );
                       },
@@ -389,6 +444,7 @@ class _HomePageState extends State<HomePage> {
     required String questionsCount,
     required IconData icon,
     required Color iconBgColor,
+    required VoidCallback onStartTap,
     required VoidCallback onViewTap,
   }) {
     return Container(
@@ -427,7 +483,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: onViewTap,
+                  onPressed: onStartTap,
                   icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
                   label: const Text('Почати тест', style: TextStyle(fontSize: 11, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
