@@ -2,10 +2,10 @@ variable "tags" {
   type        = any
   description = "Tags"
   default = {
-    Project = "EduWay2026"
+    Project     = "EduWay2026"
     Purpose     = "ContainerRegistry"
     Environment = "Shared"
-    ManagedBy   = "Terraform"    
+    ManagedBy   = "Terraform"
   }
 }
 

@@ -1,0 +1,23 @@
+# Narrow the CIDR ranges below to the clients that need access.
+vpc_cidr_block = "10.0.0.0/16"
+
+subnet = {
+  cidr = "10.0.0.0/24"
+  name = "eduway2026_subnet"
+  az   = "eu-central-1a"
+}
+
+allow_https = {
+  enabled   = true
+  cidr_ipv4 = "0.0.0.0/0"
+}
+
+allow_ssh = {
+  enabled   = false
+  cidr_ipv4 = "YOUR_IP_OR_CIDR"
+}
+
+allow_http = {
+  enabled   = false
+  cidr_ipv4 = "YOUR_IP_OR_CIDR"
+}
