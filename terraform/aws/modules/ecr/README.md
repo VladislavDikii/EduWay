@@ -81,6 +81,29 @@ terraform apply
 
 Review the plan again when prompted and confirm to create the repositories.
 
+## Destroy the repositories
+
+Destroying this module deletes the ECR repositories and their images. The
+repository resource has `force_delete = true`, so images do not prevent
+repository deletion. Confirm that the repositories and their contents are no
+longer needed before proceeding.
+
+From this directory, inspect the destruction plan:
+
+```sh
+terraform plan -destroy
+```
+
+If the plan lists only repositories you intend to remove, destroy them:
+
+```sh
+terraform destroy
+```
+
+This removes the repositories but leaves the shared S3 state bucket and the
+module's state file in place. Do not delete the state bucket while other
+Terraform modules still use it.
+
 ## Push an image
 
 After creation, get the AWS account ID and authenticate Docker to ECR:

@@ -69,5 +69,13 @@ repositories.
 See [`modules/ecr/README.md`](modules/ecr/README.md) for prerequisites,
 configuration, provisioning, and instructions for pushing images.
 
+### Network
+
+[`modules/network/`](modules/network/) provisions a VPC, subnet, internet
+gateway, route table, and configurable security group for EduWay.
+
+See [`modules/network/README.md`](modules/network/README.md) for configuration
+and usage instructions.
+
 As additional modules are added under `modules/`, add a section here describing
 each module and linking to its README.
