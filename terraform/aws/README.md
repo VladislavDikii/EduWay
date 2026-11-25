@@ -77,5 +77,13 @@ gateway, route table, and configurable security group for EduWay.
 See [`modules/network/README.md`](modules/network/README.md) for configuration
 and usage instructions.
 
+### EC2 key pair
+
+[`modules/keypair/`](modules/keypair/) registers an existing public SSH key as an
+Amazon EC2 key pair for EduWay.
+
+See [`modules/keypair/README.md`](modules/keypair/README.md) for prerequisites,
+configuration, provisioning, and destruction instructions.
+
 As additional modules are added under `modules/`, add a section here describing
 each module and linking to its README.
