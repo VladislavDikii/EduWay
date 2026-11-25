@@ -1,4 +1,5 @@
-// ignore: deprecated_member_use
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/api_service.dart';
@@ -20,15 +21,83 @@ class TicketHistoryScreen extends StatefulWidget {
 
 class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
   late Future<List<Map<String, dynamic>>> _historyFuture;
+  bool _isClearing = false;
+
+  String get _currentUser => widget.username ?? AuthService.username ?? '';
 
   @override
   void initState() {
     super.initState();
-    final user = widget.username ?? AuthService.username ?? '';
-    _historyFuture = ApiService.fetchTicketsHistory(user, limit: 50)
+    _reloadHistory();
+  }
+
+  void _reloadHistory() {
+    _historyFuture = ApiService.fetchTicketsHistory(_currentUser, limit: 50)
         .then((list) => list.cast<Map<String, dynamic>>());
   }
 
+  Future<void> _confirmAndClearHistory() async {
+    final isDark = widget.isDark;
+    final dialogBg = isDark ? const Color(0xFF15131F) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subTextColor = isDark ? Colors.white70 : const Color(0xFF475569);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: dialogBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Скинути історію квитків?',
+          style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Усі пройдені квитки буде видалено, а питання знову стануть доступними для вибору. Цю дію неможливо скасувати.',
+          style: TextStyle(color: subTextColor, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Скасувати', style: TextStyle(color: subTextColor)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Очистити',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isClearing = true);
+    final ok = await ApiService.clearTicketsHistory(_currentUser);
+    if (!mounted) return;
+
+    setState(() {
+      _isClearing = false;
+      if (ok) _reloadHistory();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Історію квитків очищено'
+              : 'Не вдалося очистити історію. Спробуйте ще раз.',
+        ),
+      ),
+    );
+  }
   String _formatDate(String? iso) {
     if (iso == null) return 'Невідомо';
     final dt = DateTime.tryParse(iso)?.toLocal();
@@ -72,6 +141,25 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
           'Історія квитків',
           style: GoogleFonts.pixelifySans(color: textColor, fontSize: 20),
         ),
+        actions: [
+          if (_isClearing)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'Скинути історію',
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+              onPressed: _confirmAndClearHistory,
+            ),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(

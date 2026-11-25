@@ -127,4 +127,21 @@ class ApiService {
     }
     return [];
   }
+  // 7. Очищення історії квитків (DELETE /api/tickets?username=...)
+  static Future<bool> clearTicketsHistory(String username) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/tickets').replace(
+        queryParameters: {'username': username},
+      );
+      final response = await http
+          .delete(uri)
+          .timeout(const Duration(seconds: 3));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Помилка очищення історії квитків: $e');
+      return false;
+    }
+  }
 }
+

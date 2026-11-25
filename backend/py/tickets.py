@@ -252,3 +252,19 @@ def list_tickets(username: str, limit: int = Query(default=20, ge=1, le=100)):
         }
         for r in rows
     ]
+
+@router.delete("/api/tickets")
+def clear_tickets(username: str):
+    """Delete all tickets of a user so history is cleared and questions become fresh again."""
+    with get_db() as conn:
+        user_id = get_user_id(conn, username)
+        conn.execute(
+            "DELETE FROM ticket_questions "
+            "WHERE ticket_id IN (SELECT id FROM tickets WHERE user_id = %s)",
+            (user_id,),
+        )
+        deleted = conn.execute(
+            "DELETE FROM tickets WHERE user_id = %s",
+            (user_id,),
+        ).rowcount
+    return {"deleted": deleted}
