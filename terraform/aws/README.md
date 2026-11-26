@@ -93,5 +93,14 @@ A record in an existing public Route 53 hosted zone.
 See [`modules/eip/README.md`](modules/eip/README.md) for configuration,
 provisioning, DNS setup, and destruction instructions.
 
+### EC2 instance
+
+[`modules/ec2/`](modules/ec2/) creates an EduWay EC2 instance and associates it
+with the Elastic IP provisioned by the EIP module. Its README describes the
+prerequisite modules and provisioning order.
+
+See [`modules/ec2/README.md`](modules/ec2/README.md) for configuration,
+provisioning, and destruction instructions.
+
 As additional modules are added under `modules/`, add a section here describing
 each module and linking to its README.
