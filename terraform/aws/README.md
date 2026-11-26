@@ -85,5 +85,13 @@ Amazon EC2 key pair for EduWay.
 See [`modules/keypair/README.md`](modules/keypair/README.md) for prerequisites,
 configuration, provisioning, and destruction instructions.
 
+### Elastic IP and DNS record
+
+[`modules/eip/`](modules/eip/) allocates an Elastic IP and creates a configurable
+A record in an existing public Route 53 hosted zone.
+
+See [`modules/eip/README.md`](modules/eip/README.md) for configuration,
+provisioning, DNS setup, and destruction instructions.
+
 As additional modules are added under `modules/`, add a section here describing
 each module and linking to its README.
