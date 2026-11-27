@@ -1,7 +1,8 @@
 terraform {
   backend "s3" {
-    bucket = "eduway2026-tfstate-bucket"
-    key    = "modules/network/terraform.tfstate"
-    region = "eu-central-1"
+    bucket       = "eduway2026-tfstate-bucket"
+    key          = "modules/network/terraform.tfstate"
+    region       = "eu-central-1"
+    use_lockfile = true
   }
 }
