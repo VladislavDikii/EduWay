@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from tickets import get_db
 
@@ -7,20 +8,31 @@ router = APIRouter()
 COLUMNS = "q.id, q.topic_id, t.name, t.pos, q.pos, q.text, q.options, q.correct_index"
 
 
-def to_dict(r):
-    return {
-        "id": r[0],
-        "topic_id": r[1],
-        "topic": r[2],
-        "topic_pos": r[3],
-        "pos": r[4],
-        "text": r[5],
-        "options": r[6],
-        "correct_index": r[7],  # index of the right option, 0 = first
-    }
+class QuestionOut(BaseModel):
+    id: int
+    topic_id: int
+    topic: str
+    topic_pos: int
+    pos: int
+    text: str
+    options: list[str]
+    correct_index: int | None
 
 
-@router.get("/api/subjects/{subject_id}/questions")
+def to_dict(r) -> QuestionOut:
+    return QuestionOut(
+        id=r[0],
+        topic_id=r[1],
+        topic=r[2],
+        topic_pos=r[3],
+        pos=r[4],
+        text=r[5],
+        options=r[6],
+        correct_index=r[7],  # index of the right option, 0 = first
+    )
+
+
+@router.get("/api/subjects/{subject_id}/questions", response_model=list[QuestionOut])
 def subject_questions(subject_id: int):
     """All questions of a subject with answers, ordered by topic and number."""
     with get_db() as conn:
@@ -36,7 +48,7 @@ def subject_questions(subject_id: int):
     return [to_dict(r) for r in rows]
 
 
-@router.get("/api/topics/{topic_id}/questions")
+@router.get("/api/topics/{topic_id}/questions", response_model=list[QuestionOut])
 def topic_questions(topic_id: int):
     """Questions of one topic with answers."""
     with get_db() as conn:
