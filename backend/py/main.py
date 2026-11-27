@@ -123,3 +123,43 @@ def logout():
     # no tokens or sessions in the MVP, so there is nothing to cancel on the server;
     # when JWT tokens appear, they will be revoked here
     return {"message": "logged out"}
+
+
+class RenameData(BaseModel):
+    username: str = Field(min_length=1, max_length=50)  # current name
+    password: str = Field(min_length=1, max_length=128)  # confirms who is asking
+    new_username: str = Field(min_length=1, max_length=50)
+
+
+@app.put("/api/username")
+def change_username(data: RenameData):
+    # there are no tokens yet, so the password confirms the request
+    current = data.username.strip()
+    new_name = data.new_username.strip()
+    if not new_name:
+        raise HTTPException(status_code=422, detail="empty username")
+
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT salt, password_hash FROM users WHERE username = %s",
+            (current,),
+        ).fetchone()
+
+        if row is None or not hmac.compare_digest(
+            hash_password(data.password, row[0]), row[1]
+        ):
+            raise HTTPException(status_code=401, detail="wrong password")
+
+        if new_name == current:
+            return {"message": "ok", "username": new_name}
+
+        try:
+            # tickets are linked by user_id, so the history stays with the user
+            conn.execute(
+                "UPDATE users SET username = %s WHERE username = %s",
+                (new_name, current),
+            )
+        except errors.UniqueViolation:
+            raise HTTPException(status_code=409, detail="username already taken")
+
+    return {"message": "ok", "username": new_name}

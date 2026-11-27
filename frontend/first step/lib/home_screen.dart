@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'page/home_page.dart';
 import 'page/topics_page.dart';
 import 'page/profile_page.dart';
+import 'page/change_username_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName; //зберігає ім'я користувача, передане з екрану входу
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedTab = 'Home'; //змінна для відстеження обраної вкладки
   String _selectedSubject = 'Математичний аналіз'; //змінна для відстеження обраного предмета
   late Map<String, String> _currentQuote; //змінна для зберігання поточної цитати
+  late String _userName; //поточне ім'я користувача (може змінитись у налаштуваннях)
 
   final List<Map<String, String>> _educationQuotes = [
     {
@@ -55,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
   //ініціалізація стану віджета
   void initState() { 
     super.initState();
+    _userName = widget.userName;
     _educationQuotes.shuffle(); //перемішує список цитат для випадкового відображення
     _currentQuote = _educationQuotes.first; //встановлює першу цитату як поточну
   }
@@ -145,6 +148,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 //ФУНКЦІЯ ДЛЯ ЗМІНИ ЦИТАТИ ПРИ ТАПІ
+  //зміна імені користувача в налаштуваннях
+  Future<void> _openChangeUsername() async {
+    final newName = await showChangeUsernameDialog(
+      context,
+      currentName: _userName,
+    );
+    if (newName == null || !mounted) return;
+    setState(() {
+      _userName = newName; //нове ім'я одразу показується на екрані
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ім\'я користувача змінено')),
+    );
+  }
+
   void _onQuoteTap() {
     setState(() {
       final availableQuotes = _educationQuotes.where((q) => q != _currentQuote).toList();
@@ -294,7 +312,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
 
                             IconButton(
-                              onPressed: () {}, //НЕ ПРАЦЮЄ НАЛАШТУВАННЯ
+                              onPressed: _openChangeUsername, //налаштування: зміна імені
+                              tooltip: 'Змінити ім\'я',
                               icon: Icon(Icons.settings_rounded, color: iconColor),
                             ),
                           ],
@@ -324,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'Topics':
         return TopicsPage(
           selectedSubject: _selectedSubject, //передає обраний предмет
-          userName: widget.userName, //передає ім'я користувача
+          userName: _userName, //передає ім'я користувача
           surfaceColor: surfaceColor,
           textColor: textColor,
           subtitleColor: subtitleColor,
@@ -334,14 +353,14 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       case 'You':
         return ProfilePage(
-          userName: widget.userName,
+          userName: _userName,
           surfaceColor: surfaceColor,
           textColor: textColor,
         );
       case 'Home':
       default:
         return HomePage(
-          userName: widget.userName,
+          userName: _userName,
           surfaceColor: surfaceColor,
           textColor: textColor,
           subtitleColor: subtitleColor,

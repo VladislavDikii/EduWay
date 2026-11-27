@@ -46,4 +46,32 @@ class AuthService {
       debugPrint('Logout error: $e');
     }
   }
+
+  // Зміна імені користувача (PUT /api/username).
+  // Повертає код відповіді: 200 - успіх, 401 - невірний пароль,
+  // 409 - ім'я зайняте, -1 - немає зв'язку з сервером.
+  static Future<int> changeUsername(String newName, String password) async {
+    final current = username;
+    if (current == null) return 401;
+    try {
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/api/username'),
+            headers: {'Content-Type': 'application/json; charset=UTF-8'},
+            body: jsonEncode({
+              'username': current,
+              'password': password,
+              'new_username': newName,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        username = newName;
+      }
+      return response.statusCode;
+    } catch (e) {
+      debugPrint('Change username error: $e');
+      return -1;
+    }
   }
+}
