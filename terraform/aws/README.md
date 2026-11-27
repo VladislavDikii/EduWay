@@ -105,9 +105,9 @@ provisioning, and destruction instructions.
 ### SSH key secrets
 
 [`modules/secrets/`](modules/secrets/) stores an existing SSH private and public
-key pair in AWS Secrets Manager. The secret is tagged with a unique `Name`
-value; this module uses local Terraform state and immediately deletes the secret
-when destroyed.
+key in separate AWS Secrets Manager secrets, each with a unique `Name` tag
+value. This module uses local Terraform state and immediately deletes the
+secrets when destroyed.
 
 See [`modules/secrets/README.md`](modules/secrets/README.md) for configuration,
 provisioning, state handling, and retrieval instructions.

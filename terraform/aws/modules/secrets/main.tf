@@ -1,18 +1,31 @@
-resource "aws_secretsmanager_secret" "ssh_keypair" {
-  name                    = "eduway2026_ssh_keypair"
-  description             = "EduWay SSH key pair"
+resource "aws_secretsmanager_secret" "ssh_private_key" {
+  name                    = "eduway2026_ssh_private_key"
+  description             = "EduWay SSH private key"
   region                  = var.region
   recovery_window_in_days = 0
 
-  tags = local.secret_tags
+  tags = local.private_key_secret_tags
 }
 
-resource "aws_secretsmanager_secret_version" "ssh_keypair" {
-  secret_id = aws_secretsmanager_secret.ssh_keypair.id
+resource "aws_secretsmanager_secret_version" "ssh_private_key" {
+  secret_id = aws_secretsmanager_secret.ssh_private_key.id
   region    = var.region
 
-  secret_string = jsonencode({
-    private_key = filebase64(var.ssh_private_key_file_path)
-    public_key  = filebase64(var.ssh_public_key_file_path)
-  })
+  secret_string = filebase64(var.ssh_private_key_file_path)
+}
+
+resource "aws_secretsmanager_secret" "ssh_public_key" {
+  name                    = "eduway2026_ssh_public_key"
+  description             = "EduWay SSH public key"
+  region                  = var.region
+  recovery_window_in_days = 0
+
+  tags = local.public_key_secret_tags
+}
+
+resource "aws_secretsmanager_secret_version" "ssh_public_key" {
+  secret_id = aws_secretsmanager_secret.ssh_public_key.id
+  region    = var.region
+
+  secret_string = filebase64(var.ssh_public_key_file_path)
 }

@@ -1,14 +1,13 @@
 # EduWay AWS SSH Key Secrets
 
-This Terraform configuration creates an AWS Secrets Manager secret named
-`eduway2026_ssh_keypair` and writes the contents of an existing SSH private and
-public key file into a JSON secret version. The JSON fields are `private_key`
-and `public_key`; each value contains the base64-encoded contents of its key
+This Terraform configuration creates separate AWS Secrets Manager secrets for
+an existing SSH private and public key. The secret names and unique `Name` tag
+values are `eduway2026_ssh_private_key` and `eduway2026_ssh_public_key`. Each
+secret version contains the base64-encoded contents of its corresponding key
 file. Base64 encoding is not encryption.
 
-The secret receives the `Name` tag `eduway2026_ssh_keypair`, along with the
-EduWay project tags. This module uses local Terraform state and has no remote
-backend configuration.
+Both secrets receive the EduWay project tags. This module uses local Terraform
+state and has no remote backend configuration.
 
 ## Prerequisites
 
@@ -64,8 +63,9 @@ terraform apply
 ```
 
 Terraform stores local state in `terraform.tfstate` in this directory. That
-state contains the private key value in plaintext, so protect it and any saved
-plan files. The repository `.gitignore` excludes Terraform state and local
+state contains the private key value in base64-encoded form, which is easily
+reversible and does not protect the key. Protect the state and any saved plan
+files. The repository `.gitignore` excludes Terraform state and local
 `terraform.tfvars` files.
 
 ## Delete the secret
@@ -87,23 +87,23 @@ them:
 terraform destroy
 ```
 
-## Read the secret from another Terraform configuration
+## Read a key from another Terraform configuration
 
-An IAM identity that can read the secret can retrieve its current version with
-the `aws_secretsmanager_secret_version` data source. Decode each key field with
-`base64decode()` after parsing the JSON:
+An IAM identity that can read the public-key secret can retrieve only that
+secret's current version with the `aws_secretsmanager_secret_version` data
+source. Decode the value with `base64decode()`:
 
 ```hcl
-data "aws_secretsmanager_secret_version" "ssh_keypair" {
-  secret_id = "eduway2026_ssh_keypair"
+data "aws_secretsmanager_secret_version" "ssh_public_key" {
+  secret_id = "eduway2026_ssh_public_key"
 }
 
 locals {
-  ssh_keypair = jsondecode(data.aws_secretsmanager_secret_version.ssh_keypair.secret_string)
-  private_key = base64decode(local.ssh_keypair.private_key)
-  public_key  = base64decode(local.ssh_keypair.public_key)
+  public_key = base64decode(data.aws_secretsmanager_secret_version.ssh_public_key.secret_string)
 }
 ```
 
-Reading the secret this way also puts its value, including the private key, in
-the consumer configuration's Terraform state.
+Reading a secret through this data source puts its value in the consumer
+configuration's Terraform state. A configuration that needs the private key
+must explicitly read `eduway2026_ssh_private_key`; the keypair module reads only
+the public-key secret.
