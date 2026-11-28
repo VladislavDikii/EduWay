@@ -1,5 +1,5 @@
 variable "ecr_repositories" {
-  type = list(string)
+  type        = list(string)
   description = "ECR repositories"
-  default = []
+  default     = []
 }
