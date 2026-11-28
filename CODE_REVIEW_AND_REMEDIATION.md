@@ -32,8 +32,8 @@ Both client services use `http://127.0.0.1:8000`. On an Android device,
 `127.0.0.1` refers to the device itself, not the computer hosting the backend.
 The client also has no deployment-specific URL configuration or HTTPS URL.
 
-Relevant code: `frontend/first step/lib/services/api_service.dart` and
-`frontend/first step/lib/services/auth_service.dart`.
+Relevant code: `frontend/flutter/lib/services/api_service.dart` and
+`frontend/flutter/lib/services/auth_service.dart`.
 
 **Remediation tracking**
 
@@ -47,7 +47,7 @@ The client creates tickets sequentially for each topic. If a later request
 fails, earlier tickets remain unfinished in the database, but the failed setup
 does not preserve their IDs for the user to resume or clean up.
 
-Relevant code: `frontend/first step/lib/test_screen.dart`, `_startTicket`.
+Relevant code: `frontend/flutter/lib/test_screen.dart`, `_startTicket`.
 
 **Remediation tracking**
 
@@ -63,7 +63,7 @@ Several fetch methods catch errors and return empty lists. Subject loading
 returns hard-coded subjects instead. This can make a service outage appear to
 be missing content or stale content rather than a connection failure.
 
-Relevant code: `frontend/first step/lib/services/api_service.dart`, including
+Relevant code: `frontend/flutter/lib/services/api_service.dart`, including
 `fetchSubjects`, `fetchTopics`, `fetchQuestions`, and `fetchTicketsHistory`.
 
 **Remediation tracking**
