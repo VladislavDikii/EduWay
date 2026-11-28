@@ -112,6 +112,24 @@ class ApiService {
     }
   }
 
+  // 5.1 Правильна відповідь на одне питання для самоперевірки
+  // (GET /api/questions/{question_id}/answer)
+  static Future<int?> fetchCorrectIndex(int questionId) async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/questions/$questionId/answer'))
+        .timeout(const Duration(seconds: 3));
+
+    if (response.statusCode == 200) {
+      final data =
+          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      final raw = data['correct_index'];
+      return raw is int ? raw : null;
+    } else {
+      final error = jsonDecode(utf8.decode(response.bodyBytes));
+      throw Exception(error['detail'] ?? 'Не вдалося перевірити відповідь');
+    }
+  }
+
   // 6. Історія квитків (GET /api/tickets?username=...)
   static Future<List<dynamic>> fetchTicketsHistory(String username, {int limit = 20}) async {
     try {

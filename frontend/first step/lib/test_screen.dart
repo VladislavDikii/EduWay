@@ -46,6 +46,11 @@ class _TestScreenState extends State<TestScreen> {
   int _item = 0;
   int? _selected;
 
+  // самоперевірка (SCRUM-22): після «Перевірити» показуємо правильну відповідь
+  bool _checked = false;
+  bool _checking = false;
+  int? _correctIndex;
+
   Timer? _timer;
   int _secondsElapsed = 0;
 
@@ -156,6 +161,7 @@ class _TestScreenState extends State<TestScreen> {
         _total = 0;
         _item = 0;
         _selected = null;
+        _resetCheck();
         _isTestingMode = true;
         _loading = false;
       });
@@ -167,6 +173,36 @@ class _TestScreenState extends State<TestScreen> {
       messenger.showSnackBar(
           const SnackBar(content: Text('Не вдалося створити квиток')));
       if (widget.startImmediately) navigator.pop();
+    }
+  }
+
+  void _resetCheck() {
+    _checked = false;
+    _checking = false;
+    _correctIndex = null;
+  }
+
+  Future<void> _checkAnswer() async {
+    if (_selected == null || _checked || _checking) return;
+    final q = _runQuestions[_item];
+    final questionId = _safeParseInt(q['id']);
+    final item = _item;
+
+    setState(() => _checking = true);
+    try {
+      final correct = await ApiService.fetchCorrectIndex(questionId);
+      if (!mounted || item != _item) return;
+      setState(() {
+        _correctIndex = correct;
+        _checked = true;
+        _checking = false;
+      });
+    } catch (e) {
+      debugPrint('Check answer error: $e');
+      if (!mounted) return;
+      setState(() => _checking = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не вдалося перевірити відповідь')));
     }
   }
 
@@ -184,6 +220,7 @@ class _TestScreenState extends State<TestScreen> {
         _answers.add(currentAnswer);
         _item++;
         _selected = null;
+        _resetCheck();
       });
       return;
     }
@@ -318,6 +355,7 @@ class _TestScreenState extends State<TestScreen> {
       _answers.clear();
       _item = 0;
       _selected = null;
+      _resetCheck();
     });
     if (widget.startImmediately && mounted) {
       Navigator.pop(context);
@@ -613,32 +651,43 @@ class _TestScreenState extends State<TestScreen> {
             itemCount: options.length,
             itemBuilder: (context, index) {
               final isSelected = _selected == index;
+              final isCorrectOption = _checked && _correctIndex == index;
+              final isWrongSelected =
+                  _checked && isSelected && _correctIndex != index;
+              final Color accent = isCorrectOption
+                  ? Colors.greenAccent
+                  : isWrongSelected
+                      ? Colors.redAccent
+                      : const Color(0xFF2563EB);
+              final bool highlighted = isSelected || isCorrectOption;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF2563EB).withValues(alpha: 0.2)
+                  color: highlighted
+                      ? accent.withValues(alpha: 0.2)
                       : const Color(0xFF15131F),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFF2563EB)
+                    color: highlighted
+                        ? accent
                         : Colors.white.withValues(alpha: 0.1),
-                    width: isSelected ? 2 : 1,
+                    width: highlighted ? 2 : 1,
                   ),
                 ),
                 child: ListTile(
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   leading: CircleAvatar(
-                    backgroundColor: isSelected
-                        ? const Color(0xFF2563EB)
+                    backgroundColor: highlighted
+                        ? accent
                         : Colors.white.withValues(alpha: 0.1),
                     child: Text(
                       String.fromCharCode(65 + index),
                       style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.white70,
+                        color: highlighted
+                            ? (isCorrectOption ? Colors.black : Colors.white)
+                            : Colors.white70,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -650,16 +699,28 @@ class _TestScreenState extends State<TestScreen> {
                         fontSize: 16,
                         fontWeight: FontWeight.w500),
                   ),
-                  onTap: () {
-                    setState(() {
-                      _selected = index;
-                    });
-                  },
+                  trailing: isCorrectOption
+                      ? const Icon(Icons.check_circle, color: Colors.greenAccent)
+                      : isWrongSelected
+                          ? const Icon(Icons.cancel, color: Colors.redAccent)
+                          : null,
+                  // після перевірки відповідь змінити не можна
+                  onTap: _checked
+                      ? null
+                      : () {
+                          setState(() {
+                            _selected = index;
+                          });
+                        },
                 ),
               );
             },
           ),
         ),
+        if (_checked) ...[
+          _buildComparison(options),
+          const SizedBox(height: 12),
+        ],
         Row(
           children: [
             SizedBox(
@@ -680,6 +741,47 @@ class _TestScreenState extends State<TestScreen> {
                       fontWeight: FontWeight.bold),
                 ),
               ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+              height: 52,
+              child: OutlinedButton(
+                onPressed: (_selected != null &&
+                        !_checked &&
+                        !_checking &&
+                        !_loading)
+                    ? _checkAnswer
+                    : null,
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: (_selected != null && !_checked)
+                        ? Colors.greenAccent
+                        : Colors.white24,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _checking
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.greenAccent),
+                      )
+                    : Text(
+                        'Перевірити',
+                        style: TextStyle(
+                          color: (_selected != null && !_checked)
+                              ? Colors.greenAccent
+                              : Colors.white38,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -716,6 +818,51 @@ class _TestScreenState extends State<TestScreen> {
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  // Блок «твоя відповідь / правильна відповідь» поруч (SCRUM-22)
+  Widget _buildComparison(List<String> options) {
+    String textOf(int? i) =>
+        (i != null && i >= 0 && i < options.length) ? options[i] : '—';
+    final bool isCorrect = _correctIndex != null && _selected == _correctIndex;
+
+    Widget card(String label, int? idx, Color color) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: TextStyle(
+                      color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(
+                idx == null
+                    ? 'Правильна відповідь недоступна'
+                    : '${String.fromCharCode(65 + idx)}. ${textOf(idx)}',
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        card('Твоя відповідь', _selected,
+            isCorrect ? Colors.greenAccent : Colors.redAccent),
+        const SizedBox(width: 12),
+        card('Правильна відповідь', _correctIndex, Colors.greenAccent),
       ],
     );
   }

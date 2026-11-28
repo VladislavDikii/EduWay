@@ -62,3 +62,15 @@ def topic_questions(topic_id: int):
             (topic_id,),
         ).fetchall()
     return [to_dict(r) for r in rows]
+
+
+@router.get("/api/questions/{question_id}/answer")
+def question_answer(question_id: int):
+    """Correct answer of one question (for the self-check button, SCRUM-22)."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT correct_index FROM questions WHERE id = %s", (question_id,)
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="question not found")
+    return {"question_id": question_id, "correct_index": row[0]}
